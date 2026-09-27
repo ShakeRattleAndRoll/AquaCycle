@@ -1,0 +1,57 @@
+import { Tabs } from 'expo-router';
+import React from 'react';
+
+import { HapticTab } from '@/components/haptic-tab';
+import CustomHeader from '@/components/main-header';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import AntDesign from '@expo/vector-icons/AntDesign';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+
+export default function TabLayout() {
+  const colorScheme = useColorScheme();
+
+  return (
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        headerShown: true,
+        header: () => <CustomHeader />,
+        tabBarButton: HapticTab,
+      }}>
+      <Tabs.Screen
+        name="staffHome"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+        }} />
+      <Tabs.Screen
+        name="customerOrder"
+        options={{
+          title: 'Orders',
+          tabBarIcon: ({ color }) => <Ionicons name="receipt-outline" size={24} color={color} />,
+        }} />
+      <Tabs.Screen  
+        name="QRscanning"
+        options={{
+          title: 'Scan',
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="qrcode-scan" size={24} color={color} />,
+        }} />
+      <Tabs.Screen
+        name="report"
+        options={{
+          title: 'Reports',
+          tabBarIcon: ({ color }) => <Ionicons name="document-sharp" size={24} color={color} />,
+        }} />
+      <Tabs.Screen
+        name="staffProfile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <AntDesign name="profile" size={24} color={color} />,
+        }} />
+
+    </Tabs>
+  );
+}
