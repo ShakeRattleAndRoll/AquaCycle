@@ -1,145 +1,263 @@
+import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { theme } from '../theme';
 
+const PROFILE_ITEMS = [
+  {
+    title: 'Personal Information',
+    subtitle: 'Manage your account details',
+    icon: 'person-outline' as const,
+  },
+  {
+    title: 'Payment Methods',
+    subtitle: 'Manage your payment options',
+    icon: 'card-outline' as const,
+  },
+  {
+    title: 'Laundry Preferences',
+    subtitle: 'Set your preferred services',
+    icon: 'water-outline' as const,
+  },
+  {
+    title: 'Help & Support',
+    subtitle: 'Get assistance with AquaCycle',
+    icon: 'help-circle-outline' as const,
+  },
+];
+
 export default function ProfileScreen() {
   const router = useRouter();
-  const menuItems = [
-    { title: 'Personal information' },
-    { title: 'Payment methods' },
-    { title: 'Laundry preferences' },
-    { title: 'Help & support' },
-  ];
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={styles.containerStyle}>
+    <View style={styles.container}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#f0f0f0"
+        animated
+      />
 
-      <View style={styles.header}>
-        <Text style={styles.subtitle}>ACCOUNT</Text>
-        <Text style={styles.title}>Profile</Text>
-      </View>
-
-      <View style={styles.userCard}>
-        <View style={styles.avatarBox}>
-          <Text style={styles.avatarText}>KR</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.headerBlock}>
+          <Text style={styles.categoryTag}>ACCOUNT</Text>
+          <Text style={styles.title}>Profile</Text>
         </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>Ken Rec</Text>
-          <Text style={styles.userEmail}>KenRec@email.com</Text>
-        </View>
-      </View>
 
-      <View style={styles.menuContainer}>
-        {menuItems.map((item, index) => (
-          <View key={index}>
-            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-              <Text style={styles.menuText}>{item.title}</Text>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-            </TouchableOpacity>
-            {index < menuItems.length - 1 && <View style={styles.divider} />}
+        <View style={[styles.profileCard, theme.color.primary]}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>KR</Text>
           </View>
-        ))}
-      </View>
 
-      <TouchableOpacity style={styles.signOutButton} activeOpacity={0.8} onPress={() => router.replace('/login')}>
-        <Text style={styles.signOutText}>Sign out</Text>
-      </TouchableOpacity>
+          <View style={styles.profileMeta}>
+            <Text style={styles.profileName}>Ken Rec</Text>
+            <Text style={styles.profileEmail}>KenRec@email.com</Text>
+          </View>
 
-    </ScrollView>
+          <View style={styles.customerBadge}>
+            <Text style={styles.badgeText}>Customer</Text>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Account Settings</Text>
+
+        <View style={[styles.menuCard, theme.color.lightBox]}>
+          {PROFILE_ITEMS.map((item, index) => (
+            <React.Fragment key={item.title}>
+              <TouchableOpacity
+                style={styles.itemRow}
+                activeOpacity={0.7}
+              >
+                <View style={styles.iconCircle}>
+                  <Ionicons
+                    name={item.icon}
+                    size={20}
+                    color={theme.color.secondary}
+                  />
+                </View>
+
+                <View style={styles.itemMeta}>
+                  <Text style={styles.itemTitle}>{item.title}</Text>
+                  <Text style={styles.itemSubtitle}>
+                    {item.subtitle}
+                  </Text>
+                </View>
+
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color="#94a3b8"
+                />
+              </TouchableOpacity>
+
+              {index < PROFILE_ITEMS.length - 1 && (
+                <View style={styles.divider} />
+              )}
+            </React.Fragment>
+          ))}
+        </View>
+
+        <TouchableOpacity
+          style={styles.signOutButton}
+          activeOpacity={0.8}
+          onPress={() => router.replace('/login')}
+        >
+          <Text style={styles.signOutText}>Sign out</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    ...theme.color.lightBackground,
+  },
+
+  scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 40,
   },
-  containerStyle: {
-    ...theme.color.lightBackground,
-  },
 
-  header: {
+  headerBlock: {
     marginBottom: 20,
   },
-  subtitle: {
-    fontSize: 12,
+
+  categoryTag: {
+    fontSize: 11,
     fontWeight: '800',
     color: '#64748b',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
+
   title: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#0f172a',
-    marginTop: 2,
+    fontFamily: 'serif',
+    marginTop: 4,
   },
 
-  /* User Info */
-  userCard: {
+  profileCard: {
+    borderRadius: 20,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 28,
+    elevation: 2,
   },
-  avatarBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#ebf3fe',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+
+  avatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    ...theme.spacing.trueCenter,
   },
+
   avatarText: {
-    fontSize: 20,
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '700',
-    color: theme.color.secondary,
   },
-  userInfo: {
+
+  profileMeta: {
     flex: 1,
+    marginLeft: 14,
   },
-  userName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0f172a',
+
+  profileName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#ffffff',
     fontFamily: 'serif',
   },
-  userEmail: {
-    fontSize: 13,
+
+  profileEmail: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
+  },
+
+  customerBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    fontFamily: 'serif',
+    marginBottom: 14,
+  },
+
+  menuCard: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 24,
+  },
+
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+
+  iconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#f0f4fe',
+    ...theme.spacing.trueCenter,
+  },
+
+  itemMeta: {
+    flex: 1,
+    marginLeft: 14,
+  },
+
+  itemTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+
+  itemSubtitle: {
+    fontSize: 12,
     color: '#64748b',
     marginTop: 2,
   },
 
-  /* Menu Item */
-  menuContainer: {
-    marginBottom: 32,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 18,
-  },
-  menuText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0f172a',
-  },
   divider: {
     height: 1,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#f1f5f9',
   },
 
-  /* Log out Button */
   signOutButton: {
     backgroundColor: '#fef2f2',
     borderRadius: 16,
@@ -148,6 +266,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
   },
+
   signOutText: {
     color: '#dc2626',
     fontSize: 15,

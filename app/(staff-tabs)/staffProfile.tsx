@@ -15,32 +15,42 @@ import { theme } from '../theme';
 
 const MANAGEMENT_ITEMS = [
   {
-    id: '1',
-    title: 'Staff accounts',
-    subtitle: '4 active members',
-    icon: (color: string) => <Feather name="users" size={20} color={color} />,
-    route: '/staff-accounts',
+    title: 'Staff Accounts',
+    subtitle: 'Manage staff members',
+    icon: <Feather name="users" size={20} color={theme.color.secondary} />,
   },
   {
-    id: '2',
-    title: 'Services & pricing',
-    subtitle: '4 services',
-    icon: (color: string) => <MaterialIcons name="receipt-long" size={20} color={color} />,
-    route: '/services-pricing',
+    title: 'Services & Pricing',
+    subtitle: 'Manage available services',
+    icon: (
+      <MaterialIcons
+        name="receipt-long"
+        size={20}
+        color={theme.color.secondary}
+      />
+    ),
   },
   {
-    id: '3',
-    title: 'Notification templates',
-    subtitle: 'Pickup and status alerts',
-    icon: (color: string) => <Ionicons name="notifications-outline" size={20} color={color} />,
-    route: '/notifications',
+    title: 'Notification Templates',
+    subtitle: 'Manage pickup and status alerts',
+    icon: (
+      <Ionicons
+        name="notifications-outline"
+        size={20}
+        color={theme.color.secondary}
+      />
+    ),
   },
   {
-    id: '4',
-    title: 'Reports & records',
-    subtitle: 'Sales and transaction history',
-    icon: (color: string) => <Feather name="bar-chart-2" size={20} color={color} />,
-    route: '/reports',
+    title: 'Reports & Records',
+    subtitle: 'View sales and transaction history',
+    icon: (
+      <Feather
+        name="bar-chart-2"
+        size={20}
+        color={theme.color.secondary}
+      />
+    ),
   },
 ];
 
@@ -49,27 +59,33 @@ export default function StaffProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f0f0f0" animated />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#f0f0f0"
+        animated
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.headerBlock}>
-          <Text style={styles.categoryTag}>ADMINISTRATOR</Text>
-          <Text style={styles.title}>Workspace</Text>
+          <Text style={styles.categoryTag}>STAFF ACCOUNT</Text>
+          <Text style={styles.title}>Profile</Text>
         </View>
 
         <View style={[styles.profileCard, theme.color.primary]}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>LO</Text>
+            <Text style={styles.avatarText}>KR</Text>
           </View>
+
           <View style={styles.profileMeta}>
             <Text style={styles.profileName}>Ken Rec</Text>
             <Text style={styles.profileRole}>Store Employee</Text>
           </View>
-          <View style={styles.adminBadge}>
-            <Text style={styles.adminBadgeText}>Employee</Text>
+
+          <View style={styles.staffBadge}>
+            <Text style={styles.badgeText}>Staff</Text>
           </View>
         </View>
 
@@ -77,27 +93,41 @@ export default function StaffProfileScreen() {
 
         <View style={[styles.managementCard, theme.color.lightBox]}>
           {MANAGEMENT_ITEMS.map((item, index) => (
-            <React.Fragment key={item.id}>
+            <React.Fragment key={item.title}>
               <TouchableOpacity
                 style={styles.itemRow}
                 activeOpacity={0.7}
-                // onPress={() => item.route && router.push(item.route as any)}
               >
                 <View style={styles.iconCircle}>
-                  {item.icon(theme.color.secondary)}
+                  {item.icon}
                 </View>
+
                 <View style={styles.itemMeta}>
                   <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
+                  <Text style={styles.itemSubtitle}>
+                    {item.subtitle}
+                  </Text>
                 </View>
-                <Feather name="chevron-right" size={18} color="#94a3b8" />
+
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color="#94a3b8"
+                />
               </TouchableOpacity>
-              {index < MANAGEMENT_ITEMS.length - 1 && <View style={styles.divider} />}
+
+              {index < MANAGEMENT_ITEMS.length - 1 && (
+                <View style={styles.divider} />
+              )}
             </React.Fragment>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.signOutButton} activeOpacity={0.8} onPress={() => router.replace('/login')}>
+        <TouchableOpacity
+          style={styles.signOutButton}
+          activeOpacity={0.8}
+          onPress={() => router.replace('/login')}
+        >
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -110,16 +140,17 @@ const styles = StyleSheet.create({
     flex: 1,
     ...theme.color.lightBackground,
   },
+
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 40,
   },
 
-  /* Header Section */
   headerBlock: {
     marginBottom: 20,
   },
+
   categoryTag: {
     fontSize: 11,
     fontWeight: '800',
@@ -127,6 +158,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
+
   title: {
     fontSize: 32,
     fontWeight: '800',
@@ -135,7 +167,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  /* Profile */
   profileCard: {
     borderRadius: 20,
     padding: 20,
@@ -144,6 +175,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     elevation: 2,
   },
+
   avatarCircle: {
     width: 48,
     height: 48,
@@ -151,39 +183,44 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     ...theme.spacing.trueCenter,
   },
+
   avatarText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
+
   profileMeta: {
     flex: 1,
     marginLeft: 14,
   },
+
   profileName: {
     fontSize: 17,
     fontWeight: '800',
     color: '#ffffff',
     fontFamily: 'serif',
   },
+
   profileRole: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 2,
   },
-  adminBadge: {
+
+  staffBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
   },
-  adminBadgeText: {
+
+  badgeText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#ffffff',
   },
 
-  /* Section Title */
   sectionTitle: {
     fontSize: 22,
     fontWeight: '800',
@@ -192,7 +229,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  /* Management Options */
   managementCard: {
     borderRadius: 20,
     paddingHorizontal: 16,
@@ -200,11 +236,13 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     marginBottom: 24,
   },
+
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
   },
+
   iconCircle: {
     width: 42,
     height: 42,
@@ -212,26 +250,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f4fe',
     ...theme.spacing.trueCenter,
   },
+
   itemMeta: {
     flex: 1,
     marginLeft: 14,
   },
+
   itemTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#0f172a',
   },
+
   itemSubtitle: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 2,
   },
+
   divider: {
     height: 1,
     backgroundColor: '#f1f5f9',
   },
 
-  /* Log out Button */
   signOutButton: {
     backgroundColor: '#fef2f2',
     borderRadius: 16,
@@ -240,6 +281,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
   },
+
   signOutText: {
     color: '#dc2626',
     fontSize: 15,
