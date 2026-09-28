@@ -45,6 +45,14 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarIcon: ({ color }) => <AntDesign name="profile" size={24} color={color} />,
       }} />
+      <Tabs.Screen
+        name="createOrder"
+        options={{
+          title: 'Order',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <Ionicons name="add-circle-outline" size={25} color={color} />,
+        }}
+      />
       
     </Tabs>
   );
