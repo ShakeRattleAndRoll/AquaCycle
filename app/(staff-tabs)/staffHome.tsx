@@ -37,7 +37,7 @@ export default function StaffHomeScreen() {
 
         <View style={[styles.revenueCard, theme.color.primary]}>
           <View style={styles.revenueLeft}>
-            <Text style={styles.revenueLabel}>TODAY'S REVENUE</Text>
+            <Text style={styles.revenueLabel}>TODAY&apos;S REVENUE</Text>
             <Text style={styles.revenueAmount}>₱8,450.00</Text>
             <View style={styles.trendRow}>
               <Feather name="trending-up" size={13} color="#ffffff" />

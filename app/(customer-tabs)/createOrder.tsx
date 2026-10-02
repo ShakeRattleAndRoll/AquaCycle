@@ -1,8 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,12 +13,13 @@ import {
   View,
 } from 'react-native';
 import { theme } from '../theme';
+import { requireSupabase } from '../../utils/supabase';
 
 const SERVICES = [
-  { id: '1', name: 'Wash & Fold', price: '₱45/kg', icon: 'washing-machine' },
-  { id: '2', name: 'Ironing', price: '₱35/kg', icon: 'iron' },
-  { id: '3', name: 'Dry Cleaning', price: '₱120/item', icon: 'tshirt-crew-outline' },
-  { id: '4', name: 'Wash & Iron', price: '₱65/kg', icon: 'water-outline' },
+  { id: '1', name: 'Wash & Fold', price: '₱45/kg', unitPrice: 45, unit: 'kg', icon: 'washing-machine' },
+  { id: '2', name: 'Ironing', price: '₱35/kg', unitPrice: 35, unit: 'kg', icon: 'iron' },
+  { id: '3', name: 'Dry Cleaning', price: '₱120/item', unitPrice: 120, unit: 'item', icon: 'tshirt-crew-outline' },
+  { id: '4', name: 'Wash & Iron', price: '₱65/kg', unitPrice: 65, unit: 'kg', icon: 'water-outline' },
 ];
 
 export default function CreateOrderScreen() {
@@ -26,6 +29,44 @@ export default function CreateOrderScreen() {
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [pickup, setPickup] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const service = SERVICES.find((item) => item.id === selectedService)!;
+  const total = useMemo(() => service.unitPrice * Math.max(1, Number(quantity) || 1), [quantity, service]);
+
+  const submitOrder = async () => {
+    const amount = Number(quantity);
+    if (!Number.isFinite(amount) || amount <= 0 || !address.trim()) {
+      Alert.alert('Check your order', 'Enter a valid quantity and pickup or delivery address.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const client = requireSupabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('Sign in before creating an order.');
+      const { data: profile, error: profileError } = await client.from('profiles').select('full_name').eq('id', user.id).single();
+      if (profileError) throw profileError;
+
+      const { data, error } = await client.from('orders').insert({
+        user_id: user.id,
+        customer_name: profile.full_name || user.email || 'Customer',
+        service_name: service.name,
+        quantity: amount,
+        quantity_unit: service.unit,
+        address: address.trim(),
+        notes: notes.trim() || null,
+        pickup_delivery: pickup,
+        estimated_total: total,
+      }).select('id').single();
+      if (error) throw error;
+      router.replace({ pathname: '/(customer-tabs)/orderDetails', params: { orderId: data.id } });
+    } catch (error) {
+      Alert.alert('Unable to create order', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -123,7 +164,7 @@ export default function CreateOrderScreen() {
             <Ionicons name="add" size={20} color={theme.color.secondary} />
           </TouchableOpacity>
 
-          <Text style={styles.quantityUnit}>kg</Text>
+          <Text style={styles.quantityUnit}>{service.unit}</Text>
         </View>
 
         <Text style={styles.label}>Pickup / Delivery Address</Text>
@@ -221,7 +262,7 @@ export default function CreateOrderScreen() {
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Estimated total</Text>
-          <Text style={styles.summaryPrice}>₱45</Text>
+          <Text style={styles.summaryPrice}>₱{total.toFixed(2)}</Text>
         </View>
 
         <Text style={styles.summaryNote}>
@@ -232,10 +273,10 @@ export default function CreateOrderScreen() {
       <TouchableOpacity
         style={styles.createButton}
         activeOpacity={0.85}
-        onPress={() => router.replace('/(customer-tabs)/orderDetails')}
+        onPress={submitOrder}
+        disabled={saving}
       >
-        <Text style={styles.createButtonText}>Create Order</Text>
-        <Ionicons name="arrow-forward" size={18} color="#ffffff" />
+        {saving ? <ActivityIndicator color="#ffffff" /> : <><Text style={styles.createButtonText}>Create Order</Text><Ionicons name="arrow-forward" size={18} color="#ffffff" /></>}
       </TouchableOpacity>
     </ScrollView>
   );

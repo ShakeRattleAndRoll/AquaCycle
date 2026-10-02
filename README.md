@@ -1,8 +1,13 @@
-# Prototype UI
-This app UI is subject to change and does not reflect the final product.
-# Logic & Database
-This Application logic and Database is not started yet.
+# AquaCycle
 
+Expo Router laundry service app using Supabase Auth and Postgres.
 
-# npx expo install expo-camera
-#
+## Run these if error 
+
+what it do, is it read package.json file and download all required package to run the project
+```sh
+- npx install 
+```
+Read .env.example follow its instruction
+
+- Secret Staff Testing Code (Staffaccountdemo)

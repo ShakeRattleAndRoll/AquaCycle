@@ -48,9 +48,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="createOrder"
         options={{
-          title: 'Order',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <Ionicons name="add-circle-outline" size={25} color={color} />,
+          href: null,
+          tabBarStyle: { display: 'none' }
         }}
       />
       

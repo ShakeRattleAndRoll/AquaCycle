@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme';
+import { requireSupabase } from '../../utils/supabase';
 
 const PROFILE_ITEMS = [
   {
@@ -47,11 +48,35 @@ const PROFILE_ITEMS = [
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [name, setName] = useState('Ken Rec');
-  const [email, setEmail] = useState('KenRec@email.com');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [draft, setDraft] = useState({ name, email, phone });
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadProfile = async () => {
+      try {
+        const client = requireSupabase();
+        const { data: { user }, error: userError } = await client.auth.getUser();
+        if (userError) throw userError;
+        if (!user) throw new Error('Sign in to view your profile.');
+        const { data, error } = await client.from('profiles').select('full_name, phone, address').eq('id', user.id).single();
+        if (error) throw error;
+        if (!active) return;
+        const profileName = data.full_name || user.email || 'Customer';
+        setName(profileName);
+        setEmail(user.email ?? '');
+        setPhone(data.phone ?? '');
+        setDraft({ name: profileName, email: user.email ?? '', phone: data.phone ?? '' });
+      } catch (error) {
+        if (active) Alert.alert('Unable to load profile', error instanceof Error ? error.message : 'Please try again.');
+      }
+    };
+    void loadProfile();
+    return () => { active = false; };
+  }, []);
 
   const initials = useMemo(
     () => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'C',
@@ -63,15 +88,25 @@ export default function ProfileScreen() {
     setIsEditing(true);
   };
 
-  const saveProfile = () => {
-    if (!draft.name.trim() || !draft.email.trim()) {
-      Alert.alert('Missing information', 'Enter your name and email address to continue.');
+  const saveProfile = async () => {
+    if (!draft.name.trim()) {
+      Alert.alert('Missing information', 'Enter your name to continue.');
       return;
     }
-    setName(draft.name.trim());
-    setEmail(draft.email.trim());
-    setPhone(draft.phone.trim());
-    setIsEditing(false);
+    try {
+      const client = requireSupabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('Sign in to update your profile.');
+      const nextProfile = { full_name: draft.name.trim(), phone: draft.phone.trim() };
+      const { error } = await client.from('profiles').update(nextProfile).eq('id', user.id);
+      if (error) throw error;
+      setName(nextProfile.full_name);
+      setPhone(nextProfile.phone);
+      setIsEditing(false);
+    } catch (error) {
+      Alert.alert('Unable to save profile', error instanceof Error ? error.message : 'Please try again.');
+    }
   };
 
   const selectItem = (title: string, message: string) => {
@@ -82,10 +117,20 @@ export default function ProfileScreen() {
     Alert.alert(title, message);
   };
 
-  const signOut = () => {
+  const signOut = async () => {
+    try {
+      const { error } = await requireSupabase().auth.signOut();
+      if (error) throw error;
+      router.replace('/login');
+    } catch (error) {
+      Alert.alert('Unable to sign out', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
+  const confirmSignOut = () => {
     Alert.alert('Sign out?', 'You will return to the login screen.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => router.replace('/login') },
+      { text: 'Sign out', style: 'destructive', onPress: () => { void signOut(); } },
     ]);
   };
 
@@ -147,13 +192,13 @@ export default function ProfileScreen() {
 
         <View style={styles.infoNote}>
           <Feather name="info" size={16} color={theme.color.secondary} />
-          <Text style={styles.infoNoteText}>Profile edits are kept for this app session only.</Text>
+          <Text style={styles.infoNoteText}>Your profile is saved to your AquaCycle account.</Text>
         </View>
 
         <TouchableOpacity
           style={styles.signOutButton}
           activeOpacity={0.8}
-          onPress={signOut}
+          onPress={confirmSignOut}
           accessibilityRole="button"
         >
           <Feather name="log-out" size={18} color="#dc2626" />
@@ -200,11 +245,11 @@ export default function ProfileScreen() {
             <Text style={styles.inputLabel}>Email address</Text>
             <TextInput
               value={draft.email}
-              onChangeText={(value) => setDraft((current) => ({ ...current, email: value }))}
               style={styles.input}
               placeholder="you@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={false}
               returnKeyType="next"
             />
             <Text style={styles.inputLabel}>Phone number (optional)</Text>

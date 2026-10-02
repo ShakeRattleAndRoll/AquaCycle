@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { requireSupabase } from '../../utils/supabase';
 import { theme } from '../theme';
 
 export default function StaffProfileScreen() {
@@ -47,10 +48,23 @@ export default function StaffProfileScreen() {
     setIsEditing(false);
   };
 
-  const signOut = () => {
+  const signOut = async () => {
+    try {
+      const { error } = await requireSupabase().auth.signOut();
+      if (error) throw error;
+      router.replace('/login');
+    } catch (error) {
+      Alert.alert(
+        'Unable to sign out',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
+  };
+
+  const confirmSignOut = () => {
     Alert.alert('Sign out?', 'You will return to the login screen.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => router.replace('/login') },
+      { text: 'Sign out', style: 'destructive', onPress: () => { void signOut(); } },
     ]);
   };
 
@@ -112,7 +126,7 @@ export default function StaffProfileScreen() {
         <TouchableOpacity
           style={styles.signOutButton}
           activeOpacity={0.8}
-          onPress={signOut}
+          onPress={confirmSignOut}
           accessibilityRole="button"
         >
           <Feather name="log-out" size={18} color="#dc2626" />

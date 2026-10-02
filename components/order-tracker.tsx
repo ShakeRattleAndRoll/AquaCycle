@@ -1,26 +1,42 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { requireSupabase } from '../utils/supabase';
+
+const STATUS_LABELS: Record<string, string> = { received: 'Order received', washing: 'Washing now', drying: 'Drying now', ready: 'Ready for pickup' };
 
 export default function OrderTracker() {
   const router = useRouter();
+  const [activeOrder, setActiveOrder] = useState<{ id: string; status: string } | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    const loadActiveOrder = async () => {
+      const { data: { user }, error: userError } = await requireSupabase().auth.getUser();
+      if (userError || !user) return;
+      const { data } = await requireSupabase().from('orders').select('id, status').eq('user_id', user.id).not('status', 'in', '(completed,cancelled)').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (active) setActiveOrder(data);
+    };
+    void loadActiveOrder();
+    return () => { active = false; };
+  }, []));
 
   return (
     <View style={styles.container}>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Track your laundry</Text>
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.replace('/(tabs)/orderDetails')}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.replace('/(customer-tabs)/orderDetails')}>
           <Text style={styles.detailsText}>Details</Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.trackerCard} activeOpacity={0.9}>
+      <TouchableOpacity style={styles.trackerCard} activeOpacity={0.9} onPress={() => router.replace('/(customer-tabs)/orderDetails')}>
         <View style={styles.progressCircleContainer}>
           <View style={styles.outerCircle}>
             <View style={styles.innerCircle}>
-              <Text style={styles.stepNumber}>3</Text>
+              <Text style={styles.stepNumber}>{activeOrder ? ['received', 'washing', 'drying', 'ready'].indexOf(activeOrder.status) + 1 : '—'}</Text>
               <Text style={styles.stepTotal}>of 4</Text>
             </View>
           </View>
@@ -29,14 +45,14 @@ export default function OrderTracker() {
         <View style={styles.statusInfo}>
           <View style={styles.statusBadge}>
             <View style={styles.badgeDot} />
-            <Text style={styles.badgeText}>Drying now</Text>
+            <Text style={styles.badgeText}>{activeOrder ? STATUS_LABELS[activeOrder.status] ?? activeOrder.status : 'No active order'}</Text>
           </View>
 
-          <Text style={styles.statusTitle}>Almost fresh & ready!</Text>
+          <Text style={styles.statusTitle}>{activeOrder ? `Order #${activeOrder.id.slice(0, 8).toUpperCase()}` : 'Start a laundry order'}</Text>
 
           <View style={styles.timeRow}>
             <Ionicons name="time-outline" size={14} color="#94a3b8" />
-            <Text style={styles.timeText}>Pickup around 3:30 PM</Text>
+            <Text style={styles.timeText}>{activeOrder ? 'Tap to view order details' : 'Your order progress appears here'}</Text>
           </View>
         </View>
 

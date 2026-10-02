@@ -1,355 +1,116 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { theme } from '../theme';
+import { requireSupabase } from '../../utils/supabase';
+
+type Order = {
+  id: string;
+  service_name: string;
+  quantity: number;
+  quantity_unit: string;
+  address: string;
+  notes: string | null;
+  pickup_delivery: boolean;
+  estimated_total: number;
+  status: string;
+  created_at: string;
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  received: 'Order received', washing: 'Washing', drying: 'Drying',
+  ready: 'Ready for pickup', completed: 'Completed', cancelled: 'Cancelled',
+};
 
 export default function OrdersDetails() {
   const router = useRouter();
+  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const client = requireSupabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('Sign in to view your orders.');
+      let query = client.from('orders').select('*').order('created_at', { ascending: false });
+      if (orderId) query = query.eq('id', orderId);
+      const { data, error } = await query;
+      if (error) throw error;
+      setOrders((data ?? []) as Order[]);
+    } catch (error) {
+      Alert.alert('Unable to load orders', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
+  useFocusEffect(useCallback(() => { void loadOrders(); }, [loadOrders]));
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={styles.containerStyle}>
-
+    <ScrollView contentContainerStyle={styles.container} style={styles.page}>
       <View style={styles.header}>
         <Text style={styles.subtitle}>YOUR LAUNDRY</Text>
         <Text style={styles.title}>Orders</Text>
       </View>
-
-      <View style={styles.activeCard}>
-        <View style={styles.cardHeader}>
-          <View style={styles.statusBadge}>
-            <View style={styles.badgeDot} />
-            <Text style={styles.badgeText}>In progress</Text>
-          </View>
-          <Text style={styles.orderId}>#AC-2048</Text>
+      {loading ? <ActivityIndicator color={theme.color.secondary} style={styles.loader} /> : null}
+      {!loading && orders.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Ionicons name="water-outline" size={34} color={theme.color.secondary} />
+          <Text style={styles.emptyTitle}>No orders yet</Text>
+          <Text style={styles.detail}>Your laundry orders will appear here.</Text>
+          <TouchableOpacity style={styles.button} onPress={() => router.push('/(customer-tabs)/createOrder')}>
+            <Text style={styles.buttonText}>Create an order</Text>
+          </TouchableOpacity>
         </View>
-
-        <Text style={styles.serviceName}>Wash & Fold</Text>
-
-        <View style={styles.timelineContainer}>
-
-          <View style={styles.stepRow}>
-            <View style={styles.stepIconColumn}>
-              <View style={[styles.circle, styles.circleCompleted]}>
-                <Ionicons name="checkmark" size={14} color="#ffffff" />
-              </View>
-              <View style={[styles.line, styles.lineCompleted]} />
-            </View>
-            <View style={styles.stepTextContainer}>
-              <Text style={styles.stepTitleCompleted}>Order received</Text>
-              <Text style={styles.stepTime}>10:40 AM</Text>
-            </View>
+      ) : null}
+      {orders.map((order) => (
+        <View key={order.id} style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.badge}><View style={styles.dot} /><Text style={styles.badgeText}>{STATUS_LABELS[order.status] ?? order.status}</Text></View>
+            <Text style={styles.orderId}>#{order.id.slice(0, 8).toUpperCase()}</Text>
           </View>
-
-          <View style={styles.stepRow}>
-            <View style={styles.stepIconColumn}>
-              <View style={[styles.circle, styles.circleCompleted]}>
-                <Ionicons name="checkmark" size={14} color="#ffffff" />
-              </View>
-              <View style={[styles.line, styles.lineCompleted]} />
-            </View>
-            <View style={styles.stepTextContainer}>
-              <Text style={styles.stepTitleCompleted}>Washing complete</Text>
-              <Text style={styles.stepTime}>1:15 PM</Text>
-            </View>
+          <Text style={styles.service}>{order.service_name}</Text>
+          <Text style={styles.detail}>{order.quantity} {order.quantity_unit} · {order.pickup_delivery ? 'Pickup & delivery' : 'Store drop-off'}</Text>
+          <Text style={styles.detail}>{order.address}</Text>
+          {order.notes ? <Text style={styles.detail}>Note: {order.notes}</Text> : null}
+          <View style={[styles.row, styles.totalRow]}>
+            <Text style={styles.detail}>{new Date(order.created_at).toLocaleDateString()}</Text>
+            <Text style={styles.total}>₱{Number(order.estimated_total).toFixed(2)}</Text>
           </View>
-
-          <View style={styles.stepRow}>
-            <View style={styles.stepIconColumn}>
-              <View style={[styles.circle, styles.circleActive]}>
-                <Text style={styles.activeStepNumber}>3</Text>
-              </View>
-              <View style={[styles.line, styles.lineInactive]} />
-            </View>
-            <View style={styles.stepTextContainer}>
-              <Text style={styles.stepTitleActive}>Drying in progress</Text>
-              <Text style={styles.stepTimeActive}>Estimated 3:30 PM</Text>
-            </View>
-          </View>
-
-          <View style={styles.stepRow}>
-            <View style={styles.stepIconColumn}>
-              <View style={[styles.circle, styles.circleInactive]}>
-                <Text style={styles.inactiveStepNumber}>4</Text>
-              </View>
-            </View>
-            <View style={styles.stepTextContainer}>
-              <Text style={styles.stepTitleInactive}>Ready for pickup</Text>
-              <Text style={styles.stepTimeInactive}>We'll notify you</Text>
-            </View>
-          </View>
-
+          {order.status === 'ready' ? (
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/(customer-tabs)/QRclaim')}>
+              <Text style={styles.buttonText}>View claim pass</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
-
-        <TouchableOpacity style={styles.claimButton} activeOpacity={0.85} onPress={() => router.replace('/(customer-tabs)/QRclaim')}>
-          <Text style={styles.claimButtonText}>View claim pass</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.pastOrdersSection}>
-        <Text style={styles.pastOrdersTitle}>Past orders</Text>
-
-        <TouchableOpacity style={styles.pastOrderItem} activeOpacity={0.7}>
-          <View style={styles.pastOrderLeft}>
-            <View style={styles.pastOrderIconBox}>
-              <MaterialCommunityIcons name="washing-machine" size={24} color={theme.color.secondary} />
-            </View>
-            <View>
-              <Text style={styles.pastOrderName}>Wash & Fold</Text>
-              <Text style={styles.pastOrderMeta}>September 18 · 4.2 kg</Text>
-            </View>
-          </View>
-          <Text style={styles.pastOrderPrice}>₱189</Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider} />
-
-        <TouchableOpacity style={styles.pastOrderItem} activeOpacity={0.7}>
-          <View style={styles.pastOrderLeft}>
-            <View style={styles.pastOrderIconBox}>
-              <MaterialCommunityIcons name="iron" size={24} color={theme.color.secondary} />
-            </View>
-            <View>
-              <Text style={styles.pastOrderName}>Ironing</Text>
-              <Text style={styles.pastOrderMeta}>September 03 · 2.0 kg</Text>
-            </View>
-          </View>
-          <Text style={styles.pastOrderPrice}>₱70</Text>
-        </TouchableOpacity>
-      </View>
-
+      ))}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-  containerStyle: {
-    ...theme.color.lightBackground,
-  },
-  header: {
-    marginBottom: 18,
-  },
-  subtitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#64748b',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginTop: 2,
-  },
-
-  /* Active Order */
-  activeCard: {
-    backgroundColor: '#ebf3fe',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#d6e4fd',
-    padding: 20,
-    marginBottom: 28,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statusBadge: {
-    backgroundColor: '#d6e4fd',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.color.secondary,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: theme.color.secondary,
-  },
-  orderId: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748b',
-  },
-  serviceName: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginVertical: 14,
-  },
-
-  /* Timeline */
-  timelineContainer: {
-    marginVertical: 6,
-    paddingLeft: 4,
-  },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  stepIconColumn: {
-    alignItems: 'center',
-    width: 28,
-  },
-  circle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  circleCompleted: {
-    backgroundColor: theme.color.secondary,
-  },
-  circleActive: {
-    backgroundColor: theme.color.secondary,
-  },
-  circleInactive: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: theme.color.tertiary,
-  },
-  activeStepNumber: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  inactiveStepNumber: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  line: {
-    width: 2,
-    height: 32,
-  },
-  lineCompleted: {
-    backgroundColor: theme.color.secondary,
-  },
-  lineInactive: {
-    backgroundColor: '#cbd5e1',
-  },
-  stepTextContainer: {
-    marginLeft: 12,
-    paddingBottom: 16,
-  },
-  stepTitleCompleted: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  stepTitleActive: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.color.secondary,
-  },
-  stepTitleInactive: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#94a3b8',
-  },
-  stepTime: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  stepTimeActive: {
-    fontSize: 12,
-    color: theme.color.secondary,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  stepTimeInactive: {
-    fontSize: 12,
-    color: '#cbd5e1',
-    marginTop: 2,
-  },
-
-  /* Button */
-  claimButton: {
-    backgroundColor: theme.color.secondary,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  claimButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  /* Past Orders */
-  pastOrdersSection: {
-    marginTop: 4,
-  },
-  pastOrdersTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0f172a',
-    fontFamily: 'serif',
-    marginBottom: 16,
-  },
-  pastOrderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-  },
-  pastOrderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  pastOrderIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#ebf3fe',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pastOrderName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  pastOrderMeta: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  pastOrderPrice: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e2e8f0',
-    marginVertical: 4,
-  },
+  page: { ...theme.color.lightBackground },
+  container: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
+  header: { marginBottom: 20 },
+  subtitle: { fontSize: 12, fontWeight: '800', color: '#64748b', letterSpacing: 1 },
+  title: { fontSize: 32, fontWeight: '700', color: '#0f172a', marginTop: 2 },
+  loader: { marginTop: 36 },
+  card: { backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#d6e4fd', padding: 18, marginBottom: 14 },
+  emptyCard: { backgroundColor: '#ffffff', borderRadius: 20, padding: 24, alignItems: 'center' },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginTop: 10, marginBottom: 4 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  badge: { backgroundColor: '#eaf2ff', borderRadius: 14, paddingVertical: 5, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.color.secondary },
+  badgeText: { color: theme.color.secondary, fontSize: 12, fontWeight: '700' },
+  orderId: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  service: { fontSize: 22, fontWeight: '700', color: '#0f172a', marginTop: 14, marginBottom: 6 },
+  detail: { color: '#64748b', fontSize: 13, marginTop: 5 },
+  totalRow: { borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 14, paddingTop: 12 },
+  total: { fontSize: 16, color: theme.color.secondary, fontWeight: '800' },
+  button: { backgroundColor: theme.color.secondary, borderRadius: 12, padding: 13, marginTop: 16, alignItems: 'center' },
+  buttonText: { color: '#ffffff', fontWeight: '700' },
 });

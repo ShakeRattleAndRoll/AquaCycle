@@ -62,7 +62,7 @@ export default function QRScanScreen() {
         <Text style={styles.categoryTag}>CAMERA ACCESS</Text>
         <Text style={styles.title}>Scan claim pass</Text>
         <Text style={styles.subtitle}>
-          Position the customer's QR code inside the frame.
+          Position the customer&apos;s QR code inside the frame.
         </Text>
       </View>
 
