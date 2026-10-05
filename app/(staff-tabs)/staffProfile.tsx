@@ -1,7 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -20,11 +21,55 @@ import { theme } from '../theme';
 
 export default function StaffProfileScreen() {
   const router = useRouter();
-  const [name, setName] = useState('Ken Rec');
-  const [email, setEmail] = useState('KenRec@email.com');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [draft, setDraft] = useState({ name, email, phone });
+  const [role, setRole] = useState('staff');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ name: '', phone: '' });
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProfile = async () => {
+      try {
+        const client = requireSupabase();
+        const { data: { user }, error: userError } = await client.auth.getUser();
+        if (userError) throw userError;
+        if (!user) throw new Error('Please sign in again to view your profile.');
+
+        const { data: profile, error: profileError } = await client
+          .from('profiles')
+          .select('full_name, phone, role')
+          .eq('id', user.id)
+          .single();
+        if (profileError) throw profileError;
+
+        if (active) {
+          setUserId(user.id);
+          setName(profile.full_name || '');
+          setEmail(user.email ?? '');
+          setPhone(profile.phone || '');
+          setRole(profile.role || 'staff');
+        }
+      } catch (error) {
+        if (active) {
+          Alert.alert(
+            'Unable to load profile',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+
+    void loadProfile();
+    return () => { active = false; };
+  }, []);
 
   const initials = useMemo(
     () => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'S',
@@ -32,20 +77,37 @@ export default function StaffProfileScreen() {
   );
 
   const openEditor = () => {
-    setDraft({ name, email, phone });
+    setDraft({ name, phone });
     setIsEditing(true);
   };
 
-  const saveProfile = () => {
-    if (!draft.name.trim() || !draft.email.trim()) {
-      Alert.alert('Missing information', 'Enter your name and email address to continue.');
+  const saveProfile = async () => {
+    if (!draft.name.trim()) {
+      Alert.alert('Name required', 'Enter your name to continue.');
       return;
     }
 
-    setName(draft.name.trim());
-    setEmail(draft.email.trim());
-    setPhone(draft.phone.trim());
-    setIsEditing(false);
+    if (!userId) {
+      Alert.alert('Unable to save', 'Your account could not be found. Please sign in again.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error } = await requireSupabase()
+        .from('profiles')
+        .update({ full_name: draft.name.trim(), phone: draft.phone.trim() })
+        .eq('id', userId);
+      if (error) throw error;
+
+      setName(draft.name.trim());
+      setPhone(draft.phone.trim());
+      setIsEditing(false);
+    } catch (error) {
+      Alert.alert('Unable to save profile', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const signOut = async () => {
@@ -77,24 +139,34 @@ export default function StaffProfileScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerBlock}>
-          <Text style={styles.categoryTag}>STAFF ACCOUNT</Text>
+          <View style={styles.eyebrow}>
+            <Feather name="user" size={13} color={theme.color.secondary} />
+            <Text style={styles.categoryTag}>STAFF ACCOUNT</Text>
+          </View>
           <Text style={styles.title}>Profile</Text>
-          <Text style={styles.headerSubtitle}>Your account and work information</Text>
+          <Text style={styles.headerSubtitle}>Manage your account and contact details.</Text>
         </View>
 
-        <View style={[styles.profileCard, theme.color.primary]}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
+        {isLoading ? (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator color={theme.color.secondary} />
+            <Text style={styles.loadingText}>Loading your profile…</Text>
           </View>
-          <View style={styles.profileMeta}>
-            <Text style={styles.profileName}>{name}</Text>
-            <Text style={styles.profileRole}>Store Employee</Text>
+        ) : (
+          <View style={styles.profileCard}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <View style={styles.profileMeta}>
+              <Text style={styles.profileName} numberOfLines={1}>{name || 'Staff member'}</Text>
+              <Text style={styles.profileRole}>AquaCycle team</Text>
+            </View>
+            <View style={styles.activeBadge}>
+              <View style={styles.activeDot} />
+              <Text style={styles.activeText}>Active</Text>
+            </View>
           </View>
-          <View style={styles.activeBadge}>
-            <View style={styles.activeDot} />
-            <Text style={styles.activeText}>Active</Text>
-          </View>
-        </View>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Personal information</Text>
@@ -103,24 +175,27 @@ export default function StaffProfileScreen() {
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Edit personal information"
+            style={styles.editButton}
+            disabled={isLoading}
           >
+            <Feather name="edit-2" size={14} color={theme.color.secondary} />
             <Text style={styles.editText}>Edit</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.infoCard, theme.color.lightBox]}>
+        <View style={styles.infoCard}>
           <InfoRow icon="user" label="Full name" value={name} />
           <View style={styles.divider} />
-          <InfoRow icon="mail" label="Email address" value={email} />
+          <InfoRow icon="mail" label="Email address" value={email || 'Not available'} muted={!email} />
           <View style={styles.divider} />
           <InfoRow icon="phone" label="Phone number" value={phone || 'Not provided'} muted={!phone} />
         </View>
 
         <Text style={styles.sectionTitle}>Work information</Text>
-        <View style={[styles.infoCard, theme.color.lightBox]}>
-          <InfoRow icon="briefcase" label="Position" value="Store Employee" />
+        <View style={styles.infoCard}>
+          <InfoRow icon="briefcase" label="Position" value={role === 'staff' ? 'Store Employee' : 'Customer'} />
           <View style={styles.divider} />
-          <InfoRow icon="shield" label="Account type" value="Staff" />
+          <InfoRow icon="shield" label="Account type" value={role === 'staff' ? 'Staff' : role} />
         </View>
 
         <TouchableOpacity
@@ -144,7 +219,11 @@ export default function StaffProfileScreen() {
           style={styles.modalBackdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.editSheet}>
+          <ScrollView
+            style={styles.editSheet}
+            contentContainerStyle={styles.editSheetContent}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.sheetHandle} />
             <View style={styles.modalHeader}>
               <View>
@@ -170,16 +249,6 @@ export default function StaffProfileScreen() {
               autoCapitalize="words"
               returnKeyType="next"
             />
-            <Text style={styles.inputLabel}>Email address</Text>
-            <TextInput
-              value={draft.email}
-              onChangeText={(value) => setDraft((current) => ({ ...current, email: value }))}
-              style={styles.input}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              returnKeyType="next"
-            />
             <Text style={styles.inputLabel}>Phone number (optional)</Text>
             <TextInput
               value={draft.phone}
@@ -195,10 +264,11 @@ export default function StaffProfileScreen() {
               onPress={saveProfile}
               activeOpacity={0.8}
               accessibilityRole="button"
+              disabled={isSaving}
             >
-              <Text style={styles.saveButtonText}>Save changes</Text>
+              {isSaving ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.saveButtonText}>Save changes</Text>}
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
@@ -232,87 +302,117 @@ function InfoRow({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    ...theme.color.lightBackground,
+    backgroundColor: '#f5f8fc',
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 36,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 44,
   },
   headerBlock: {
-    marginBottom: 20,
+    marginBottom: 22,
+  },
+  eyebrow: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#e8f0ff',
   },
   categoryTag: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#64748b',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    color: theme.color.secondary,
+    letterSpacing: 0.8,
   },
   title: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '800',
     color: '#0f172a',
-    fontFamily: 'serif',
-    marginTop: 4,
+    marginTop: 10,
+    letterSpacing: -0.7,
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#64748b',
-    marginTop: 5,
+    marginTop: 6,
   },
   profileCard: {
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 26,
+    marginBottom: 28,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e6edf7',
+    shadowColor: '#18345f',
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
     elevation: 2,
   },
+  loadingCard: {
+    minHeight: 94,
+    borderRadius: 22,
+    marginBottom: 28,
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingText: {
+    color: '#64748b',
+    fontSize: 13,
+  },
   avatarCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: '#e9f0ff',
     ...theme.spacing.trueCenter,
   },
   avatarText: {
-    color: '#ffffff',
-    fontSize: 18,
+    color: theme.color.secondary,
+    fontSize: 19,
     fontWeight: '800',
   },
   profileMeta: {
     flex: 1,
-    marginLeft: 14,
+    minWidth: 0,
+    marginLeft: 13,
   },
   profileName: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
-    fontFamily: 'serif',
+    color: '#0f172a',
   },
   profileRole: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 3,
+    color: '#64748b',
+    marginTop: 5,
   },
   activeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 9,
+    backgroundColor: '#ecfdf3',
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 20,
   },
   activeDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#bbf7d0',
+    backgroundColor: '#22c55e',
   },
   activeText: {
-    color: '#ffffff',
+    color: '#15803d',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -320,27 +420,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: '800',
     color: '#0f172a',
-    fontFamily: 'serif',
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    borderRadius: 12,
+    backgroundColor: '#e8f0ff',
   },
   editText: {
     color: theme.color.secondary,
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 12,
   },
   infoCard: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
+    borderRadius: 20,
+    paddingHorizontal: 15,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 24,
+    borderColor: '#e7edf5',
+    backgroundColor: '#ffffff',
+    marginBottom: 25,
+    shadowColor: '#18345f',
+    shadowOpacity: 0.035,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
   infoRow: {
     minHeight: 66,
@@ -352,7 +466,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#f0f4fe',
+    backgroundColor: '#edf3ff',
     ...theme.spacing.trueCenter,
   },
   infoMeta: {
@@ -383,7 +497,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 9,
     backgroundColor: '#fef2f2',
-    borderRadius: 16,
+    borderRadius: 15,
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
@@ -404,6 +518,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    maxHeight: '90%',
+  },
+  editSheetContent: {
     paddingHorizontal: 22,
     paddingTop: 12,
     paddingBottom: 30,
@@ -426,7 +543,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: '#0f172a',
-    fontFamily: 'serif',
   },
   modalSubtitle: {
     fontSize: 13,
