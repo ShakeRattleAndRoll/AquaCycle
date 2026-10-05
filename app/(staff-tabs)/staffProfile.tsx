@@ -1,5 +1,3 @@
-import AppText from '@/components/ui/app-text';
-import AppTextInput from '@/components/ui/app-text-input';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -12,6 +10,8 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -28,12 +28,10 @@ export default function StaffProfileScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: '', phone: '' });
   const [isEditing, setIsEditing] = useState(false);
-<<<<<<< HEAD
-  const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-=======
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -74,7 +72,6 @@ export default function StaffProfileScreen() {
     void loadProfile();
     return () => { active = false; };
   }, []);
->>>>>>> 1c7ed926179abc8495e838066cb6ff6a4a286b28
 
   const initials = useMemo(
     () => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'S',
@@ -116,8 +113,8 @@ export default function StaffProfileScreen() {
   };
 
   const signOut = async () => {
-    if (signingOut) return;
-    setSigningOut(true);
+    if (isSigningOut) return;
+    setIsSigningOut(true);
     try {
       const { error } = await requireSupabase().auth.signOut();
       if (error) throw error;
@@ -129,7 +126,7 @@ export default function StaffProfileScreen() {
         error instanceof Error ? error.message : 'Please try again.',
       );
     } finally {
-      setSigningOut(false);
+      setIsSigningOut(false);
     }
   };
 
@@ -146,26 +143,6 @@ export default function StaffProfileScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerBlock}>
-<<<<<<< HEAD
-          <AppText style={styles.categoryTag}>STAFF ACCOUNT</AppText>
-          <AppText style={styles.title}>Profile</AppText>
-          <AppText style={styles.headerSubtitle}>Your account and work information</AppText>
-        </View>
-
-        <View style={[styles.profileCard, theme.color.primary]}>
-          <View style={styles.avatarCircle}>
-            <AppText style={styles.avatarText}>{initials}</AppText>
-          </View>
-          <View style={styles.profileMeta}>
-            <AppText style={styles.profileName}>{name}</AppText>
-            <AppText style={styles.profileRole}>Store Employee</AppText>
-          </View>
-          <View style={styles.activeBadge}>
-            <View style={styles.activeDot} />
-            <AppText style={styles.activeText}>Active</AppText>
-          </View>
-        </View>
-=======
           <View style={styles.eyebrow}>
             <Feather name="user" size={13} color={theme.color.secondary} />
             <Text style={styles.categoryTag}>STAFF ACCOUNT</Text>
@@ -194,10 +171,9 @@ export default function StaffProfileScreen() {
             </View>
           </View>
         )}
->>>>>>> 1c7ed926179abc8495e838066cb6ff6a4a286b28
 
         <View style={styles.sectionHeader}>
-          <AppText style={styles.sectionTitle}>Personal information</AppText>
+          <Text style={styles.sectionTitle}>Personal information</Text>
           <TouchableOpacity
             onPress={openEditor}
             activeOpacity={0.7}
@@ -206,12 +182,8 @@ export default function StaffProfileScreen() {
             style={styles.editButton}
             disabled={isLoading}
           >
-<<<<<<< HEAD
-            <AppText style={styles.editText}>Edit</AppText>
-=======
             <Feather name="edit-2" size={14} color={theme.color.secondary} />
             <Text style={styles.editText}>Edit</Text>
->>>>>>> 1c7ed926179abc8495e838066cb6ff6a4a286b28
           </TouchableOpacity>
         </View>
 
@@ -223,15 +195,9 @@ export default function StaffProfileScreen() {
           <InfoRow icon="phone" label="Phone number" value={phone || 'Not provided'} muted={!phone} />
         </View>
 
-<<<<<<< HEAD
-        <AppText style={styles.sectionTitle}>Work information</AppText>
-        <View style={[styles.infoCard, theme.color.lightBox]}>
-          <InfoRow icon="briefcase" label="Position" value="Store Employee" />
-=======
         <Text style={styles.sectionTitle}>Work information</Text>
         <View style={styles.infoCard}>
           <InfoRow icon="briefcase" label="Position" value={role === 'staff' ? 'Store Employee' : 'Customer'} />
->>>>>>> 1c7ed926179abc8495e838066cb6ff6a4a286b28
           <View style={styles.divider} />
           <InfoRow icon="shield" label="Account type" value={role === 'staff' ? 'Staff' : role} />
         </View>
@@ -243,7 +209,7 @@ export default function StaffProfileScreen() {
           accessibilityRole="button"
         >
           <Feather name="log-out" size={18} color="#dc2626" />
-          <AppText style={styles.signOutText}>Sign out</AppText>
+          <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -265,8 +231,8 @@ export default function StaffProfileScreen() {
             <View style={styles.sheetHandle} />
             <View style={styles.modalHeader}>
               <View>
-                <AppText style={styles.modalTitle}>Edit profile</AppText>
-                <AppText style={styles.modalSubtitle}>Update your contact information.</AppText>
+                <Text style={styles.modalTitle}>Edit profile</Text>
+                <Text style={styles.modalSubtitle}>Update your contact information.</Text>
               </View>
               <TouchableOpacity
                 onPress={() => setIsEditing(false)}
@@ -278,8 +244,8 @@ export default function StaffProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            <AppText style={styles.inputLabel}>Full name</AppText>
-            <AppTextInput
+            <Text style={styles.inputLabel}>Full name</Text>
+            <TextInput
               value={draft.name}
               onChangeText={(value) => setDraft((current) => ({ ...current, name: value }))}
               style={styles.input}
@@ -287,23 +253,8 @@ export default function StaffProfileScreen() {
               autoCapitalize="words"
               returnKeyType="next"
             />
-<<<<<<< HEAD
-            <AppText style={styles.inputLabel}>Email address</AppText>
-            <AppTextInput
-              value={draft.email}
-              onChangeText={(value) => setDraft((current) => ({ ...current, email: value }))}
-              style={styles.input}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              returnKeyType="next"
-            />
-            <AppText style={styles.inputLabel}>Phone number (optional)</AppText>
-            <AppTextInput
-=======
             <Text style={styles.inputLabel}>Phone number (optional)</Text>
             <TextInput
->>>>>>> 1c7ed926179abc8495e838066cb6ff6a4a286b28
               value={draft.phone}
               onChangeText={(value) => setDraft((current) => ({ ...current, phone: value }))}
               style={styles.input}
@@ -319,11 +270,7 @@ export default function StaffProfileScreen() {
               accessibilityRole="button"
               disabled={isSaving}
             >
-<<<<<<< HEAD
-              <AppText style={styles.saveButtonText}>Save changes</AppText>
-=======
               {isSaving ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.saveButtonText}>Save changes</Text>}
->>>>>>> 1c7ed926179abc8495e838066cb6ff6a4a286b28
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -332,14 +279,14 @@ export default function StaffProfileScreen() {
         <View style={styles.logoutBackdrop}>
           <View style={styles.logoutCard}>
             <View style={styles.logoutIcon}><Feather name="log-out" size={22} color="#dc2626" /></View>
-            <AppText style={styles.logoutTitle}>Sign out?</AppText>
-            <AppText style={styles.logoutMessage}>Are you sure you want to sign out? You will return to the login screen.</AppText>
+            <Text style={styles.logoutTitle}>Sign out?</Text>
+            <Text style={styles.logoutMessage}>Are you sure you want to sign out? You will return to the login screen.</Text>
             <View style={styles.logoutActions}>
-              <TouchableOpacity style={styles.logoutCancelButton} onPress={() => setLogoutConfirmationOpen(false)} disabled={signingOut} accessibilityRole="button">
-                <AppText style={styles.logoutCancelText}>Cancel</AppText>
+              <TouchableOpacity style={styles.logoutCancelButton} onPress={() => setLogoutConfirmationOpen(false)} disabled={isSigningOut} accessibilityRole="button">
+                <Text style={styles.logoutCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.logoutConfirmButton} onPress={() => { void signOut(); }} disabled={signingOut} accessibilityRole="button">
-                {signingOut ? <ActivityIndicator color="#ffffff" /> : <AppText style={styles.logoutConfirmText}>Sign out</AppText>}
+              <TouchableOpacity style={styles.logoutConfirmButton} onPress={() => { void signOut(); }} disabled={isSigningOut} accessibilityRole="button">
+                {isSigningOut ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.logoutConfirmText}>Sign out</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -366,8 +313,8 @@ function InfoRow({
         <Feather name={icon} size={17} color={theme.color.secondary} />
       </View>
       <View style={styles.infoMeta}>
-        <AppText style={styles.infoLabel}>{label}</AppText>
-        <AppText style={[styles.infoValue, muted && styles.mutedValue]}>{value}</AppText>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={[styles.infoValue, muted && styles.mutedValue]}>{value}</Text>
       </View>
     </View>
   );
@@ -690,4 +637,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-
