@@ -17,6 +17,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarLabelStyle: { fontFamily: 'Roboto_500Medium' },
         headerShown: true,
         header: () => <CustomHeader />,
         tabBarButton: HapticTab,
@@ -28,7 +29,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }} />
       <Tabs.Screen
-        name="customerOrder"
+        name="staffOrders"
         options={{
           title: 'Orders',
           tabBarIcon: ({ color }) => <Ionicons name="receipt-outline" size={24} color={color} />,

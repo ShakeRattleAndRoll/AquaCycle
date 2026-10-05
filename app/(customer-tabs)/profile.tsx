@@ -1,22 +1,23 @@
+import AppText from '@/components/ui/app-text';
+import AppTextInput from '@/components/ui/app-text-input';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { theme } from '../theme';
+import { theme } from '../../constants/app-theme';
 import { requireSupabase } from '../../utils/supabase';
 
 const PROFILE_ITEMS = [
@@ -53,6 +54,8 @@ export default function ProfileScreen() {
   const [phone, setPhone] = useState('');
   const [draft, setDraft] = useState({ name, email, phone });
   const [isEditing, setIsEditing] = useState(false);
+  const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -118,20 +121,22 @@ export default function ProfileScreen() {
   };
 
   const signOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
     try {
       const { error } = await requireSupabase().auth.signOut();
       if (error) throw error;
+      setLogoutConfirmationOpen(false);
       router.replace('/login');
     } catch (error) {
       Alert.alert('Unable to sign out', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSigningOut(false);
     }
   };
 
   const confirmSignOut = () => {
-    Alert.alert('Sign out?', 'You will return to the login screen.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => { void signOut(); } },
-    ]);
+    setLogoutConfirmationOpen(true);
   };
 
   return (
@@ -143,27 +148,27 @@ export default function ProfileScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerBlock}>
-          <Text style={styles.categoryTag}>ACCOUNT</Text>
-          <Text style={styles.title}>Profile</Text>
-          <Text style={styles.headerSubtitle}>Manage your account and laundry settings</Text>
+          <AppText style={styles.categoryTag}>ACCOUNT</AppText>
+          <AppText style={styles.title}>Profile</AppText>
+          <AppText style={styles.headerSubtitle}>Manage your account and laundry settings</AppText>
         </View>
 
         <View style={[styles.profileCard, theme.color.primary]}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
+            <AppText style={styles.avatarText}>{initials}</AppText>
           </View>
           <View style={styles.profileMeta}>
-            <Text style={styles.profileName}>{name}</Text>
-            <Text style={styles.profileEmail} numberOfLines={1}>{email}</Text>
+            <AppText style={styles.profileName}>{name}</AppText>
+            <AppText style={styles.profileEmail} numberOfLines={1}>{email}</AppText>
           </View>
           <View style={styles.customerBadge}>
-            <Text style={styles.badgeText}>Customer</Text>
+            <AppText style={styles.badgeText}>Customer</AppText>
           </View>
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Account settings</Text>
-          <Text style={styles.itemCount}>4 options</Text>
+          <AppText style={styles.sectionTitle}>Account settings</AppText>
+          <AppText style={styles.itemCount}>4 options</AppText>
         </View>
 
         <View style={[styles.menuCard, theme.color.lightBox]}>
@@ -180,8 +185,8 @@ export default function ProfileScreen() {
                   <Ionicons name={item.icon} size={20} color={theme.color.secondary} />
                 </View>
                 <View style={styles.itemMeta}>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
+                  <AppText style={styles.itemTitle}>{item.title}</AppText>
+                  <AppText style={styles.itemSubtitle}>{item.subtitle}</AppText>
                 </View>
                 <Feather name="chevron-right" size={18} color="#94a3b8" />
               </TouchableOpacity>
@@ -192,7 +197,7 @@ export default function ProfileScreen() {
 
         <View style={styles.infoNote}>
           <Feather name="info" size={16} color={theme.color.secondary} />
-          <Text style={styles.infoNoteText}>Your profile is saved to your AquaCycle account.</Text>
+          <AppText style={styles.infoNoteText}>Your profile is saved to your AquaCycle account.</AppText>
         </View>
 
         <TouchableOpacity
@@ -202,7 +207,7 @@ export default function ProfileScreen() {
           accessibilityRole="button"
         >
           <Feather name="log-out" size={18} color="#dc2626" />
-          <Text style={styles.signOutText}>Sign out</Text>
+          <AppText style={styles.signOutText}>Sign out</AppText>
         </TouchableOpacity>
       </ScrollView>
 
@@ -220,8 +225,8 @@ export default function ProfileScreen() {
             <View style={styles.sheetHandle} />
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Personal information</Text>
-                <Text style={styles.modalSubtitle}>Keep your contact details up to date.</Text>
+                <AppText style={styles.modalTitle}>Personal information</AppText>
+                <AppText style={styles.modalSubtitle}>Keep your contact details up to date.</AppText>
               </View>
               <TouchableOpacity
                 onPress={() => setIsEditing(false)}
@@ -233,8 +238,8 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Full name</Text>
-            <TextInput
+            <AppText style={styles.inputLabel}>Full name</AppText>
+            <AppTextInput
               value={draft.name}
               onChangeText={(value) => setDraft((current) => ({ ...current, name: value }))}
               style={styles.input}
@@ -242,8 +247,8 @@ export default function ProfileScreen() {
               autoCapitalize="words"
               returnKeyType="next"
             />
-            <Text style={styles.inputLabel}>Email address</Text>
-            <TextInput
+            <AppText style={styles.inputLabel}>Email address</AppText>
+            <AppTextInput
               value={draft.email}
               style={styles.input}
               placeholder="you@example.com"
@@ -252,8 +257,8 @@ export default function ProfileScreen() {
               editable={false}
               returnKeyType="next"
             />
-            <Text style={styles.inputLabel}>Phone number (optional)</Text>
-            <TextInput
+            <AppText style={styles.inputLabel}>Phone number (optional)</AppText>
+            <AppTextInput
               value={draft.phone}
               onChangeText={(value) => setDraft((current) => ({ ...current, phone: value }))}
               style={styles.input}
@@ -268,10 +273,27 @@ export default function ProfileScreen() {
               activeOpacity={0.8}
               accessibilityRole="button"
             >
-              <Text style={styles.saveButtonText}>Save changes</Text>
+              <AppText style={styles.saveButtonText}>Save changes</AppText>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+      <Modal visible={logoutConfirmationOpen} transparent animationType="fade" onRequestClose={() => setLogoutConfirmationOpen(false)}>
+        <View style={styles.logoutBackdrop}>
+          <View style={styles.logoutCard}>
+            <View style={styles.logoutIcon}><Feather name="log-out" size={22} color="#dc2626" /></View>
+            <AppText style={styles.logoutTitle}>Sign out?</AppText>
+            <AppText style={styles.logoutMessage}>Are you sure you want to sign out? You will return to the login screen.</AppText>
+            <View style={styles.logoutActions}>
+              <TouchableOpacity style={styles.logoutCancelButton} onPress={() => setLogoutConfirmationOpen(false)} disabled={signingOut} accessibilityRole="button">
+                <AppText style={styles.logoutCancelText}>Cancel</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.logoutConfirmButton} onPress={() => { void signOut(); }} disabled={signingOut} accessibilityRole="button">
+                {signingOut ? <ActivityIndicator color="#ffffff" /> : <AppText style={styles.logoutConfirmText}>Sign out</AppText>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -442,6 +464,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  logoutBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 22,
+    backgroundColor: 'rgba(15,23,42,0.52)',
+  },
+  logoutCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 22,
+    padding: 22,
+    backgroundColor: '#ffffff',
+    elevation: 12,
+  },
+  logoutIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  logoutTitle: { color: '#0f172a', fontSize: 20, fontWeight: '800' },
+  logoutMessage: { color: '#64748b', fontSize: 14, lineHeight: 20, marginTop: 7 },
+  logoutActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 22 },
+  logoutCancelButton: { minHeight: 44, paddingHorizontal: 17, justifyContent: 'center', borderRadius: 12, backgroundColor: '#f1f5f9' },
+  logoutCancelText: { color: '#334155', fontSize: 13, fontWeight: '700' },
+  logoutConfirmButton: { minHeight: 44, minWidth: 104, paddingHorizontal: 17, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#dc2626' },
+  logoutConfirmText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
   modalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -516,3 +569,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+

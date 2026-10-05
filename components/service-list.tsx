@@ -1,14 +1,15 @@
+import AppText from '@/components/ui/app-text';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 const SERVICES = [
   {
     id: '1',
     title: 'Wash & Fold',
-    price: '₱45/kg',
+    price: '+45/kg',
     icon: 'washing-machine',
     library: 'MaterialCommunityIcons',
     bgColor: '#ebf3fe',
@@ -17,7 +18,7 @@ const SERVICES = [
   {
     id: '2',
     title: 'Dry Clean',
-    price: '₱75/kg',
+    price: '+75/kg',
     icon: 'dry-cleaning', 
     library: 'MaterialIcons',
     bgColor: '#ebdfcf',
@@ -26,7 +27,7 @@ const SERVICES = [
   {
     id: '3',
     title: 'Ironing',
-    price: '₱15/kg',
+    price: '₱35 flat',
     icon: 'iron',
     library: 'MaterialCommunityIcons',
     bgColor: '#e6ccee',
@@ -35,7 +36,7 @@ const SERVICES = [
   {
     id: '4',
     title: 'Self-Service',
-    price: '₱25/kg',
+    price: '+35/kg',
     icon: 'timer-outline',
     library: 'MaterialCommunityIcons',
     bgColor: '#d1f1c9',
@@ -62,8 +63,8 @@ export default function ServicesList() {
           </View>
 
           <View style={styles.textContainer}>
-            <Text style={styles.titleText}>{item.title}</Text>
-            <Text style={styles.priceText}>{item.price}</Text>
+            <AppText style={styles.titleText}>{item.title}</AppText>
+            <AppText style={styles.priceText}>{item.price}</AppText>
           </View>
 
           <View style={styles.chevronCircle}>

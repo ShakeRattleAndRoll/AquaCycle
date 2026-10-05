@@ -8,7 +8,6 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -17,6 +16,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarLabelStyle: { fontFamily: 'Roboto_500Medium' },
         headerShown: true,
         header: () => <CustomHeader />,
         tabBarButton: HapticTab,
@@ -34,25 +34,11 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Ionicons name="receipt-outline" size={24} color={color} />,
         }} />
       <Tabs.Screen
-        name="QRclaim"
-        options={{
-          title: 'Claim',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="qrcode-scan" size={24} color={color} />,
-        }} />
-      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <AntDesign name="profile" size={24} color={color} />,
       }} />
-      <Tabs.Screen
-        name="createOrder"
-        options={{
-          href: null,
-          tabBarStyle: { display: 'none' }
-        }}
-      />
-      
     </Tabs>
   );
 }

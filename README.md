@@ -9,5 +9,3 @@ what it do, is it read package.json file and download all required package to ru
 - npx install 
 ```
 Read .env.example follow its instruction
-
-- Secret Staff Testing Code (Staffaccountdemo)

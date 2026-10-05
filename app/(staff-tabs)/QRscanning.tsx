@@ -1,3 +1,4 @@
+import AppText from '@/components/ui/app-text';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -6,26 +7,65 @@ import {
   Alert,
   StatusBar,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { theme } from '../theme';
+import { theme } from '../../constants/app-theme';
+import { requireSupabase } from '../../utils/supabase';
 
 export default function QRScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
+  const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
-    Alert.alert('Claim Pass Scanned', `Scanned Order Code: ${data}`, [
-      { text: 'OK', onPress: () => setScanned(false) },
-    ]);
-  };
+    const finishScan = (title: string, message: string) => {
+      Alert.alert(title, message, [{ text: 'OK', onPress: () => setScanned(false) }]);
+    };
+    const prefix = 'AQUACYCLE_ORDER:';
+    if (!data.startsWith(prefix)) {
+      finishScan('Invalid claim pass', 'This QR code is not an AquaCycle order claim pass.');
+      return;
+    }
 
-  const handleSimulateScan = () => {
-    handleBarCodeScanned({ data: 'AC-2051' });
+    try {
+      const orderId = data.slice(prefix.length).trim();
+      const client = requireSupabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('Sign in with a staff account to scan claim passes.');
+
+      const { data: profile, error: profileError } = await client.from('profiles').select('role').eq('id', user.id).single();
+      if (profileError) throw profileError;
+      if (profile.role !== 'staff') throw new Error('Only staff can scan claim passes.');
+
+      const { data: order, error: orderError } = await client.from('orders').select('id,customer_name,service_name,status').eq('id', orderId).maybeSingle();
+      if (orderError) throw orderError;
+      if (!order) {
+        finishScan('Order not found', 'This claim pass does not match an order.');
+        return;
+      }
+      if (order.status !== 'ready') {
+        finishScan('Order is not ready', `${order.customer_name || 'Customer'} · ${order.service_name} · Status: ${order.status}.`);
+        return;
+      }
+
+      const { data: updatedOrder, error: updateError } = await client.from('orders')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', order.id)
+        .eq('status', 'ready')
+        .select('id')
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (!updatedOrder) {
+        finishScan('Order already claimed', 'This order is no longer ready for pickup.');
+        return;
+      }
+      finishScan('Pickup confirmed', `${order.customer_name || 'Customer'} · ${order.service_name} is now marked completed.`);
+    } catch (error) {
+      finishScan('Unable to verify claim pass', error instanceof Error ? error.message : 'Please try again.');
+    }
   };
 
   if (!permission) {
@@ -38,16 +78,16 @@ export default function QRScanScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="#f0f0f0" animated />
         <View style={styles.permissionCard}>
           <Ionicons name="camera-outline" size={48} color={theme.color.secondary} />
-          <Text style={styles.permissionTitle}>Camera Access Needed</Text>
-          <Text style={styles.permissionSub}>
+          <AppText style={styles.permissionTitle}>Camera Access Needed</AppText>
+          <AppText style={styles.permissionSub}>
             AquaCycle needs access to your camera to scan customer claim passes.
-          </Text>
+          </AppText>
           <TouchableOpacity
             style={[styles.primaryButton, theme.color.primary]}
             onPress={requestPermission}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryButtonText}>Grant Camera Permission</Text>
+            <AppText style={styles.primaryButtonText}>Grant Camera Permission</AppText>
           </TouchableOpacity>
         </View>
       </View>
@@ -59,11 +99,11 @@ export default function QRScanScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#f0f0f0" animated />
 
       <View style={styles.headerBlock}>
-        <Text style={styles.categoryTag}>CAMERA ACCESS</Text>
-        <Text style={styles.title}>Scan claim pass</Text>
-        <Text style={styles.subtitle}>
+        <AppText style={styles.categoryTag}>CAMERA ACCESS</AppText>
+        <AppText style={styles.title}>Scan claim pass</AppText>
+        <AppText style={styles.subtitle}>
           Position the customer&apos;s QR code inside the frame.
-        </Text>
+        </AppText>
       </View>
 
       <View style={styles.cameraFrame}>
@@ -94,21 +134,7 @@ export default function QRScanScreen() {
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.primaryButton, theme.color.primary]}
-        onPress={handleSimulateScan}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.primaryButtonText}>Simulate QR scan</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.manualButton}
-        onPress={() => Alert.alert('Manual Input', 'Enter order ID feature')}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.manualButtonText}>Enter order number manually</Text>
-      </TouchableOpacity>
+      <AppText style={styles.scanHint}>A valid scan confirms pickup and marks that order completed.</AppText>
     </View>
   );
 }
@@ -233,15 +259,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  manualButton: {
-    marginTop: 18,
-    alignItems: 'center',
-  },
-  manualButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2162db',
-  },
+  scanHint: { color: '#64748b', textAlign: 'center', fontSize: 13, lineHeight: 19 },
 
   /* Permission Request */
   permissionCenter: {
@@ -269,3 +287,4 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
 });
+

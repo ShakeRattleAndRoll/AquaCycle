@@ -1,3 +1,5 @@
+import AppText from '@/components/ui/app-text';
+import AppTextInput from '@/components/ui/app-text-input';
 import Entypo from '@expo/vector-icons/Entypo';
 import { FunctionsHttpError, type Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
@@ -7,13 +9,11 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { requireSupabase } from '../utils/supabase';
-import { theme } from './theme';
+import { theme } from '../constants/app-theme';
 
 export default function SignUp() {
   const router = useRouter();
@@ -117,13 +117,13 @@ export default function SignUp() {
             <Entypo name="drop" size={24} color="#ffffff" />
           </View>
           <View>
-            <Text style={styles.title}>Create your account</Text>
-            <Text style={styles.subtitle}>Book laundry service with AquaCycle</Text>
+            <AppText style={styles.title}>Create your account</AppText>
+            <AppText style={styles.subtitle}>Book laundry service with AquaCycle</AppText>
           </View>
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Account type</Text>
+          <AppText style={styles.label}>Account type</AppText>
           <View style={styles.accountTypePicker}>
             {(['customer', 'staff'] as const).map((type) => {
               const selected = accountType === type;
@@ -135,18 +135,18 @@ export default function SignUp() {
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
                 >
-                  <Text style={[styles.accountTypeText, selected && styles.accountTypeTextSelected]}>
+                  <AppText style={[styles.accountTypeText, selected && styles.accountTypeTextSelected]}>
                     {type === 'customer' ? 'Customer' : 'Staff (testing)'}
-                  </Text>
+                  </AppText>
                 </TouchableOpacity>
               );
             })}
           </View>
           {accountType === 'staff' ? (
             <>
-              <Text style={styles.staffNote}>Staff testing accounts require the private code configured in Supabase.</Text>
-              <Text style={styles.label}>Staff testing code</Text>
-              <TextInput
+              <AppText style={styles.staffNote}>Staff testing accounts require the private code configured in Supabase.</AppText>
+              <AppText style={styles.label}>Staff testing code</AppText>
+              <AppTextInput
                 placeholder="Enter invite code"
                 style={styles.input}
                 value={inviteCode}
@@ -158,8 +158,8 @@ export default function SignUp() {
             </>
           ) : null}
 
-          <Text style={styles.label}>Name</Text>
-          <TextInput
+          <AppText style={styles.label}>Name</AppText>
+          <AppTextInput
             placeholder="Juan Dela Cruz"
             style={styles.input}
             value={fullName}
@@ -168,8 +168,8 @@ export default function SignUp() {
             autoCapitalize="words"
           />
 
-          <Text style={styles.label}>Username</Text>
-          <TextInput
+          <AppText style={styles.label}>Username</AppText>
+          <AppTextInput
             placeholder="juan_dela_cruz"
             style={styles.input}
             value={username}
@@ -179,10 +179,10 @@ export default function SignUp() {
             autoCorrect={false}
             maxLength={24}
           />
-          <Text style={styles.hint}>Unique username, 3 to 24 letters, numbers, or underscores</Text>
+          <AppText style={styles.hint}>Unique username, 3 to 24 letters, numbers, or underscores</AppText>
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
+          <AppText style={styles.label}>Email</AppText>
+          <AppTextInput
             placeholder="you@example.com"
             autoCapitalize="none"
             autoComplete="email"
@@ -192,8 +192,8 @@ export default function SignUp() {
             onChangeText={setEmail}
           />
 
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput
+          <AppText style={styles.label}>Phone Number</AppText>
+          <AppTextInput
             placeholder="09XXXXXXXXX"
             style={styles.input}
             value={phone}
@@ -202,8 +202,8 @@ export default function SignUp() {
             autoComplete="tel"
           />
 
-          <Text style={styles.label}>Address</Text>
-          <TextInput
+          <AppText style={styles.label}>Address</AppText>
+          <AppTextInput
             placeholder="Enter your address"
             style={styles.input}
             value={address}
@@ -211,8 +211,8 @@ export default function SignUp() {
             autoComplete="street-address"
           />
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
+          <AppText style={styles.label}>Password</AppText>
+          <AppTextInput
             placeholder="Enter your password"
             style={styles.input}
             value={password}
@@ -227,7 +227,7 @@ export default function SignUp() {
             activeOpacity={0.8}
             onPress={createAccount}
           >
-            {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+            {loading ? <ActivityIndicator color="#ffffff" /> : <AppText style={styles.buttonText}>Create Account</AppText>}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -235,9 +235,9 @@ export default function SignUp() {
             activeOpacity={0.7}
             onPress={() => router.replace('/login')}
           >
-            <Text style={styles.loginText}>
-              Already have an account? <Text style={{color: '#4e8ef4'}}> Login </Text>
-            </Text>
+            <AppText style={styles.loginText}>
+              Already have an account? <AppText style={{color: '#4e8ef4'}}> Login </AppText>
+            </AppText>
           </TouchableOpacity>
         </View>
       </View>
@@ -364,3 +364,4 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
 });
+

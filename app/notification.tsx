@@ -1,8 +1,9 @@
+import AppText from '@/components/ui/app-text';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ALL_NOTIFICATIONS = [
@@ -61,7 +62,7 @@ export default function NotificationsScreen() {
         >
           <Ionicons name="chevron-back" size={24} color="#0f172a" />
         </TouchableOpacity>
-        <Text style={styles.title}>Notifications</Text>
+        <AppText style={styles.title}>Notifications</AppText>
         <View style={{ width: 40 }} /> 
       </View>
 
@@ -73,8 +74,8 @@ export default function NotificationsScreen() {
                 <MaterialCommunityIcons name={item.icon as any} size={22} color={item.iconColor} />
               </View>
               <View style={styles.textContainer}>
-                <Text style={styles.itemTitle}>{item.title}</Text>
-                <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
+                <AppText style={styles.itemTitle}>{item.title}</AppText>
+                <AppText style={styles.itemSubtitle}>{item.subtitle}</AppText>
               </View>
             </View>
             {index < ALL_NOTIFICATIONS.length - 1 && <View style={styles.divider} />}

@@ -1,7 +1,10 @@
+import AppText from '@/components/ui/app-text';
+import AppTextInput from '@/components/ui/app-text-input';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -9,14 +12,12 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { requireSupabase } from '../../utils/supabase';
-import { theme } from '../theme';
+import { theme } from '../../constants/app-theme';
 
 export default function StaffProfileScreen() {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function StaffProfileScreen() {
   const [phone, setPhone] = useState('');
   const [draft, setDraft] = useState({ name, email, phone });
   const [isEditing, setIsEditing] = useState(false);
+  const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const initials = useMemo(
     () => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'S',
@@ -49,23 +52,25 @@ export default function StaffProfileScreen() {
   };
 
   const signOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
     try {
       const { error } = await requireSupabase().auth.signOut();
       if (error) throw error;
+      setLogoutConfirmationOpen(false);
       router.replace('/login');
     } catch (error) {
       Alert.alert(
         'Unable to sign out',
         error instanceof Error ? error.message : 'Please try again.',
       );
+    } finally {
+      setSigningOut(false);
     }
   };
 
   const confirmSignOut = () => {
-    Alert.alert('Sign out?', 'You will return to the login screen.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => { void signOut(); } },
-    ]);
+    setLogoutConfirmationOpen(true);
   };
 
   return (
@@ -77,34 +82,34 @@ export default function StaffProfileScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerBlock}>
-          <Text style={styles.categoryTag}>STAFF ACCOUNT</Text>
-          <Text style={styles.title}>Profile</Text>
-          <Text style={styles.headerSubtitle}>Your account and work information</Text>
+          <AppText style={styles.categoryTag}>STAFF ACCOUNT</AppText>
+          <AppText style={styles.title}>Profile</AppText>
+          <AppText style={styles.headerSubtitle}>Your account and work information</AppText>
         </View>
 
         <View style={[styles.profileCard, theme.color.primary]}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
+            <AppText style={styles.avatarText}>{initials}</AppText>
           </View>
           <View style={styles.profileMeta}>
-            <Text style={styles.profileName}>{name}</Text>
-            <Text style={styles.profileRole}>Store Employee</Text>
+            <AppText style={styles.profileName}>{name}</AppText>
+            <AppText style={styles.profileRole}>Store Employee</AppText>
           </View>
           <View style={styles.activeBadge}>
             <View style={styles.activeDot} />
-            <Text style={styles.activeText}>Active</Text>
+            <AppText style={styles.activeText}>Active</AppText>
           </View>
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Personal information</Text>
+          <AppText style={styles.sectionTitle}>Personal information</AppText>
           <TouchableOpacity
             onPress={openEditor}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Edit personal information"
           >
-            <Text style={styles.editText}>Edit</Text>
+            <AppText style={styles.editText}>Edit</AppText>
           </TouchableOpacity>
         </View>
 
@@ -116,7 +121,7 @@ export default function StaffProfileScreen() {
           <InfoRow icon="phone" label="Phone number" value={phone || 'Not provided'} muted={!phone} />
         </View>
 
-        <Text style={styles.sectionTitle}>Work information</Text>
+        <AppText style={styles.sectionTitle}>Work information</AppText>
         <View style={[styles.infoCard, theme.color.lightBox]}>
           <InfoRow icon="briefcase" label="Position" value="Store Employee" />
           <View style={styles.divider} />
@@ -130,7 +135,7 @@ export default function StaffProfileScreen() {
           accessibilityRole="button"
         >
           <Feather name="log-out" size={18} color="#dc2626" />
-          <Text style={styles.signOutText}>Sign out</Text>
+          <AppText style={styles.signOutText}>Sign out</AppText>
         </TouchableOpacity>
       </ScrollView>
 
@@ -148,8 +153,8 @@ export default function StaffProfileScreen() {
             <View style={styles.sheetHandle} />
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Edit profile</Text>
-                <Text style={styles.modalSubtitle}>Update your contact information.</Text>
+                <AppText style={styles.modalTitle}>Edit profile</AppText>
+                <AppText style={styles.modalSubtitle}>Update your contact information.</AppText>
               </View>
               <TouchableOpacity
                 onPress={() => setIsEditing(false)}
@@ -161,8 +166,8 @@ export default function StaffProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Full name</Text>
-            <TextInput
+            <AppText style={styles.inputLabel}>Full name</AppText>
+            <AppTextInput
               value={draft.name}
               onChangeText={(value) => setDraft((current) => ({ ...current, name: value }))}
               style={styles.input}
@@ -170,8 +175,8 @@ export default function StaffProfileScreen() {
               autoCapitalize="words"
               returnKeyType="next"
             />
-            <Text style={styles.inputLabel}>Email address</Text>
-            <TextInput
+            <AppText style={styles.inputLabel}>Email address</AppText>
+            <AppTextInput
               value={draft.email}
               onChangeText={(value) => setDraft((current) => ({ ...current, email: value }))}
               style={styles.input}
@@ -180,8 +185,8 @@ export default function StaffProfileScreen() {
               autoCapitalize="none"
               returnKeyType="next"
             />
-            <Text style={styles.inputLabel}>Phone number (optional)</Text>
-            <TextInput
+            <AppText style={styles.inputLabel}>Phone number (optional)</AppText>
+            <AppTextInput
               value={draft.phone}
               onChangeText={(value) => setDraft((current) => ({ ...current, phone: value }))}
               style={styles.input}
@@ -196,10 +201,27 @@ export default function StaffProfileScreen() {
               activeOpacity={0.8}
               accessibilityRole="button"
             >
-              <Text style={styles.saveButtonText}>Save changes</Text>
+              <AppText style={styles.saveButtonText}>Save changes</AppText>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+      <Modal visible={logoutConfirmationOpen} transparent animationType="fade" onRequestClose={() => setLogoutConfirmationOpen(false)}>
+        <View style={styles.logoutBackdrop}>
+          <View style={styles.logoutCard}>
+            <View style={styles.logoutIcon}><Feather name="log-out" size={22} color="#dc2626" /></View>
+            <AppText style={styles.logoutTitle}>Sign out?</AppText>
+            <AppText style={styles.logoutMessage}>Are you sure you want to sign out? You will return to the login screen.</AppText>
+            <View style={styles.logoutActions}>
+              <TouchableOpacity style={styles.logoutCancelButton} onPress={() => setLogoutConfirmationOpen(false)} disabled={signingOut} accessibilityRole="button">
+                <AppText style={styles.logoutCancelText}>Cancel</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.logoutConfirmButton} onPress={() => { void signOut(); }} disabled={signingOut} accessibilityRole="button">
+                {signingOut ? <ActivityIndicator color="#ffffff" /> : <AppText style={styles.logoutConfirmText}>Sign out</AppText>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -222,8 +244,8 @@ function InfoRow({
         <Feather name={icon} size={17} color={theme.color.secondary} />
       </View>
       <View style={styles.infoMeta}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={[styles.infoValue, muted && styles.mutedValue]}>{value}</Text>
+        <AppText style={styles.infoLabel}>{label}</AppText>
+        <AppText style={[styles.infoValue, muted && styles.mutedValue]}>{value}</AppText>
       </View>
     </View>
   );
@@ -395,6 +417,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  logoutBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 22,
+    backgroundColor: 'rgba(15,23,42,0.52)',
+  },
+  logoutCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 22,
+    padding: 22,
+    backgroundColor: '#ffffff',
+    elevation: 12,
+  },
+  logoutIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  logoutTitle: { color: '#0f172a', fontSize: 20, fontWeight: '800' },
+  logoutMessage: { color: '#64748b', fontSize: 14, lineHeight: 20, marginTop: 7 },
+  logoutActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 22 },
+  logoutCancelButton: { minHeight: 44, paddingHorizontal: 17, justifyContent: 'center', borderRadius: 12, backgroundColor: '#f1f5f9' },
+  logoutCancelText: { color: '#334155', fontSize: 13, fontWeight: '700' },
+  logoutConfirmButton: { minHeight: 44, minWidth: 104, paddingHorizontal: 17, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#dc2626' },
+  logoutConfirmText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
   modalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -469,3 +522,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+

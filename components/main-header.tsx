@@ -1,3 +1,4 @@
+import AppText from '@/components/ui/app-text';
 import Entypo from '@expo/vector-icons/Entypo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -7,13 +8,12 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { theme } from '../app/theme';
+import { theme } from '../constants/app-theme';
 
 const NOTIFICATIONS = [
   {
@@ -48,7 +48,7 @@ export default function CustomHeader() {
   const [showNotifications, setShowNotifications] = useState(false);
   const hasUnread = true;
 
-  const isStaffRoute = pathname.includes('staffHome') || pathname.includes('QRscanning') || pathname.includes('report') || pathname.includes('staffProfile') || pathname.includes('customerOrder');
+  const isStaffRoute = pathname.includes('staffHome') || pathname.includes('staffOrders') || pathname.includes('QRscanning') || pathname.includes('report') || pathname.includes('staffProfile') || pathname.includes('customerOrder');
 
   const handleSeeAll = () => {
     setShowNotifications(false);
@@ -63,10 +63,10 @@ export default function CustomHeader() {
             <Entypo name="drop" size={20} color="#ffffff" />
           </View>
           <View style={{ gap: 2 }}>
-            <Text style={styles.brandTitle}>AquaCycle</Text>
-            <Text style={styles.userRole}>
+            <AppText style={styles.brandTitle}>AquaCycle</AppText>
+            <AppText style={styles.userRole}>
               {isStaffRoute ? 'WORKSPACE' : 'Customer'}
-            </Text>
+            </AppText>
           </View>
         </View>
 
@@ -95,8 +95,8 @@ export default function CustomHeader() {
 
                 <View style={styles.dropdownHeader}>
                   <View>
-                    <Text style={styles.notifSubtitle}>UPDATES</Text>
-                    <Text style={styles.notifTitle}>Notifications</Text>
+                    <AppText style={styles.notifSubtitle}>UPDATES</AppText>
+                    <AppText style={styles.notifTitle}>Notifications</AppText>
                   </View>
                   <TouchableOpacity
                     style={styles.closeButton}
@@ -123,8 +123,8 @@ export default function CustomHeader() {
                           />
                         </View>
                         <View style={styles.notifTextContainer}>
-                          <Text style={styles.itemTitle}>{item.title}</Text>
-                          <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
+                          <AppText style={styles.itemTitle}>{item.title}</AppText>
+                          <AppText style={styles.itemSubtitle}>{item.subtitle}</AppText>
                         </View>
                       </View>
                       {index < NOTIFICATIONS.length - 1 && <View style={styles.divider} />}
@@ -136,7 +136,7 @@ export default function CustomHeader() {
                   onPress={handleSeeAll}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.seeAllText}>See all notifications</Text>
+                  <AppText style={styles.seeAllText}>See all notifications</AppText>
                   <Ionicons name="chevron-forward" size={14} color={theme.color.secondary} />
                 </TouchableOpacity>
 

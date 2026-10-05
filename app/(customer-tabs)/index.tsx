@@ -1,3 +1,4 @@
+import AppText from '@/components/ui/app-text';
 import OrderTracker from '@/components/order-tracker';
 import ServicesList from '@/components/service-list';
 import { greetings } from '@/logic/greetings';
@@ -8,11 +9,10 @@ import { useRouter } from 'expo-router';
 import {
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { theme } from '../theme';
+import { theme } from '../../constants/app-theme';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -25,8 +25,8 @@ export default function HomeScreen() {
     >
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.greetSubtitle}>{greet}</Text>
-          <Text style={styles.greetTitle}>Welcome User!</Text>
+          <AppText style={styles.greetSubtitle}>{greet}</AppText>
+          <AppText style={styles.greetTitle}>Welcome User!</AppText>
         </View>
 
         <TouchableOpacity
@@ -44,18 +44,18 @@ export default function HomeScreen() {
       <View style={styles.cardContainer}>
         <View style={styles.leftColumn}>
           <View>
-            <Text style={styles.cardSubtitle}>Laundry day</Text>
-            <Text style={styles.cardTitle}>
+            <AppText style={styles.cardSubtitle}>Laundry day</AppText>
+            <AppText style={styles.cardTitle}>
               We will handle the dirty work.
-            </Text>
+            </AppText>
           </View>
 
           <TouchableOpacity
             style={styles.button}
-            onPress={() => router.push('/createOrder' as any)}
+            onPress={() => router.push('/orders')}
             activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>Start an order</Text>
+            <AppText style={styles.buttonText}>Start an order</AppText>
             <Ionicons
               name="chevron-forward"
               size={16}
@@ -80,7 +80,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Choose a service</Text>
+        <AppText style={styles.sectionTitle}>Choose a service</AppText>
 
         <TouchableOpacity
           onPress={() =>
@@ -88,7 +88,7 @@ export default function HomeScreen() {
           }
           activeOpacity={0.7}
         >
-          <Text style={styles.seeAllText}>See all</Text>
+          <AppText style={styles.seeAllText}>See all</AppText>
         </TouchableOpacity>
       </View>
 
@@ -234,3 +234,4 @@ const styles = StyleSheet.create({
     marginHorizontal: -10,
   },
 });
+

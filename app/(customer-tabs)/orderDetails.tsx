@@ -1,32 +1,47 @@
+import AppText from '@/components/ui/app-text';
+import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import QRCode from 'react-native-qrcode-svg';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { theme } from '../theme';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { requireSupabase } from '../../utils/supabase';
+import { theme } from '../../constants/app-theme';
 
+type OrderService = {
+  service_name: string;
+  quantity: number;
+  quantity_unit: string;
+  estimated_total: number;
+  final_total: number | null;
+};
 type Order = {
   id: string;
   service_name: string;
   quantity: number;
   quantity_unit: string;
+  final_quantity: number | null;
   address: string;
   notes: string | null;
   pickup_delivery: boolean;
   estimated_total: number;
+  delivery_fee: number;
+  final_total: number | null;
   status: string;
   created_at: string;
+  order_services?: OrderService[];
 };
 
 const STATUS_LABELS: Record<string, string> = {
   received: 'Order received', washing: 'Washing', drying: 'Drying',
   ready: 'Ready for pickup', completed: 'Completed', cancelled: 'Cancelled',
 };
+const orderAmount = (order: Order) => Number(order.final_total ?? (Number(order.estimated_total) + Number(order.delivery_fee ?? 0)));
 
 export default function OrdersDetails() {
   const router = useRouter();
-  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadOrders = useCallback(async () => {
@@ -36,66 +51,140 @@ export default function OrdersDetails() {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('Sign in to view your orders.');
-      let query = client.from('orders').select('*').order('created_at', { ascending: false });
-      if (orderId) query = query.eq('id', orderId);
+      const query = client.from('orders').select('*, order_services(*)').eq('user_id', user.id).order('created_at', { ascending: false });
       const { data, error } = await query;
       if (error) throw error;
-      setOrders((data ?? []) as Order[]);
+      const loadedOrders = (data ?? []) as Order[];
+      setOrders(loadedOrders);
     } catch (error) {
       Alert.alert('Unable to load orders', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, []);
 
-  useFocusEffect(useCallback(() => { void loadOrders(); }, [loadOrders]));
+  useFocusEffect(useCallback(() => {
+    void loadOrders();
+    return () => setSelectedOrder(null);
+  }, [loadOrders]));
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={styles.page}>
-      <View style={styles.header}>
-        <Text style={styles.subtitle}>YOUR LAUNDRY</Text>
-        <Text style={styles.title}>Orders</Text>
-      </View>
-      {loading ? <ActivityIndicator color={theme.color.secondary} style={styles.loader} /> : null}
-      {!loading && orders.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Ionicons name="water-outline" size={34} color={theme.color.secondary} />
-          <Text style={styles.emptyTitle}>No orders yet</Text>
-          <Text style={styles.detail}>Your laundry orders will appear here.</Text>
-          <TouchableOpacity style={styles.button} onPress={() => router.push('/(customer-tabs)/createOrder')}>
-            <Text style={styles.buttonText}>Create an order</Text>
+    <View style={styles.page}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTitle}>
+            <AppText style={styles.subtitle}>YOUR LAUNDRY</AppText>
+            <AppText style={styles.title}>Orders</AppText>
+          </View>
+          <TouchableOpacity style={styles.historyButton} onPress={() => router.push('/history')}>
+            <Feather name="archive" size={16} color={theme.color.secondary} />
+            <AppText style={styles.historyButtonText}>History</AppText>
           </TouchableOpacity>
         </View>
-      ) : null}
-      {orders.map((order) => (
-        <View key={order.id} style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.badge}><View style={styles.dot} /><Text style={styles.badgeText}>{STATUS_LABELS[order.status] ?? order.status}</Text></View>
-            <Text style={styles.orderId}>#{order.id.slice(0, 8).toUpperCase()}</Text>
-          </View>
-          <Text style={styles.service}>{order.service_name}</Text>
-          <Text style={styles.detail}>{order.quantity} {order.quantity_unit} · {order.pickup_delivery ? 'Pickup & delivery' : 'Store drop-off'}</Text>
-          <Text style={styles.detail}>{order.address}</Text>
-          {order.notes ? <Text style={styles.detail}>Note: {order.notes}</Text> : null}
-          <View style={[styles.row, styles.totalRow]}>
-            <Text style={styles.detail}>{new Date(order.created_at).toLocaleDateString()}</Text>
-            <Text style={styles.total}>₱{Number(order.estimated_total).toFixed(2)}</Text>
-          </View>
-          {order.status === 'ready' ? (
-            <TouchableOpacity style={styles.button} onPress={() => router.push('/(customer-tabs)/QRclaim')}>
-              <Text style={styles.buttonText}>View claim pass</Text>
+
+        {loading ? <ActivityIndicator color={theme.color.secondary} style={styles.loader} /> : null}
+        {!loading && orders.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="water-outline" size={34} color={theme.color.secondary} />
+            <AppText style={styles.emptyTitle}>No orders yet</AppText>
+            <AppText style={styles.detail}>Your laundry orders will appear here.</AppText>
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/orders')}>
+              <AppText style={styles.buttonText}>Create an order</AppText>
             </TouchableOpacity>
-          ) : null}
+          </View>
+        ) : null}
+
+        {orders.map((order) => (
+          <View key={order.id} style={styles.card}>
+            <View style={styles.row}>
+              <View style={styles.badge}>
+                <View style={styles.dot} />
+                <AppText style={styles.badgeText}>{STATUS_LABELS[order.status] ?? order.status}</AppText>
+              </View>
+              <AppText style={styles.orderId}>#{order.id.slice(0, 8).toUpperCase()}</AppText>
+            </View>
+            <AppText style={styles.service}>
+              {order.order_services?.length ? order.order_services.map((service) => service.service_name).join(', ') : order.service_name}
+            </AppText>
+            <AppText style={styles.detail}>{new Date(order.created_at).toLocaleDateString()}</AppText>
+            <TouchableOpacity onPress={() => setSelectedOrder(order)} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`View details for order ${order.id.slice(0, 8)}`}>
+              <AppText style={styles.openHint}>Tap to view order details</AppText>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </ScrollView>
+
+      <Modal visible={Boolean(selectedOrder)} transparent animationType="fade" onRequestClose={() => setSelectedOrder(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.headerTitle}>
+                <AppText style={styles.subtitle}>ORDER DETAILS</AppText>
+                <AppText style={styles.modalTitle}>#{selectedOrder?.id.slice(0, 8).toUpperCase()}</AppText>
+              </View>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedOrder(null)} accessibilityLabel="Close order details">
+                <Feather name="x" size={21} color="#334155" />
+              </TouchableOpacity>
+            </View>
+            {selectedOrder ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+                <View style={styles.modalStatus}>
+                  <View style={styles.badge}><View style={styles.dot} /><AppText style={styles.badgeText}>{STATUS_LABELS[selectedOrder.status] ?? selectedOrder.status}</AppText></View>
+                  <AppText style={styles.detail}>{new Date(selectedOrder.created_at).toLocaleString()}</AppText>
+                </View>
+                <AppText style={styles.sectionTitle}>Selected services</AppText>
+                {selectedOrder.order_services?.length ? selectedOrder.order_services.map((service) => (
+                  <View key={service.service_name} style={styles.serviceRow}>
+                    <View style={styles.serviceInfo}>
+                      <AppText style={styles.serviceName}>{service.service_name}</AppText>
+                      <AppText style={styles.detail}>{service.service_name === 'Ironing' ? 'Fixed-price service' : 'Estimated ' + service.quantity + ' ' + service.quantity_unit}</AppText>
+                    </View>
+                    <View style={styles.servicePrice}>
+                      <AppText style={styles.price}>${Number(service.final_total ?? service.estimated_total).toFixed(2)}</AppText>
+                      <AppText style={styles.priceHint}>{service.final_total !== null ? 'final' : 'estimate'}</AppText>
+                    </View>
+                  </View>
+                )) : (
+                  <View style={styles.serviceRow}>
+                    <AppText style={styles.serviceName}>{selectedOrder.service_name}</AppText>
+                    <AppText style={styles.price}>${Number(selectedOrder.estimated_total).toFixed(2)}</AppText>
+                  </View>
+                )}
+                {selectedOrder.final_quantity !== null ? <AppText style={styles.detail}>Final order amount: {selectedOrder.final_quantity} {selectedOrder.quantity_unit}</AppText> : selectedOrder.order_services?.length && selectedOrder.order_services.every((service) => service.service_name === 'Ironing') ? <AppText style={styles.detail}>Ironing has a fixed service charge.</AppText> : <AppText style={styles.detail}>Final amount will be confirmed by staff.</AppText>}
+                <View style={styles.infoBlock}>
+                  <AppText style={styles.sectionTitle}>Pickup and delivery</AppText>
+                  <AppText style={styles.detail}>{selectedOrder.pickup_delivery ? 'Pickup & delivery' : 'Store drop-off'}</AppText>
+                  {selectedOrder.pickup_delivery ? <AppText style={styles.detail}>Delivery fee: ${Number(selectedOrder.delivery_fee).toFixed(2)}</AppText> : null}
+                  <AppText style={styles.detail}>{selectedOrder.address}</AppText>
+                </View>
+                {selectedOrder.notes ? <View style={styles.infoBlock}><AppText style={styles.sectionTitle}>Notes</AppText><AppText style={styles.detail}>{selectedOrder.notes}</AppText></View> : null}
+                <View style={styles.modalTotal}>
+                  <AppText style={styles.totalLabel}>{selectedOrder.final_total !== null ? 'Final total' : 'Estimated total'}</AppText>
+                  <AppText style={styles.total}>${orderAmount(selectedOrder).toFixed(2)}</AppText>
+                </View>
+                {selectedOrder.status === 'ready' ? (
+                  <View style={styles.claimPass}>
+                    <AppText style={styles.claimTitle}>Ready for pickup</AppText>
+                    <AppText style={styles.claimHint}>Show this order QR code to staff when you collect it.</AppText>
+                    <View style={styles.qrCard}><QRCode value={'AQUACYCLE_ORDER:' + selectedOrder.id} size={180} backgroundColor="#ffffff" color="#0f172a" /></View>
+                  </View>
+                ) : <AppText style={styles.claimUnavailable}>The claim QR code will appear here when the order is ready.</AppText>}
+              </ScrollView>
+            ) : null}
+          </View>
         </View>
-      ))}
-    </ScrollView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { ...theme.color.lightBackground },
-  container: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
-  header: { marginBottom: 20 },
+  page: { flex: 1, ...theme.color.lightBackground },
+  container: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, flexGrow: 1 },
+  header: { marginBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: { flex: 1 },
+  historyButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#eaf2ff' },
+  historyButtonText: { color: theme.color.secondary, fontSize: 12, fontWeight: '700' },
   subtitle: { fontSize: 12, fontWeight: '800', color: '#64748b', letterSpacing: 1 },
   title: { fontSize: 32, fontWeight: '700', color: '#0f172a', marginTop: 2 },
   loader: { marginTop: 36 },
@@ -107,10 +196,32 @@ const styles = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.color.secondary },
   badgeText: { color: theme.color.secondary, fontSize: 12, fontWeight: '700' },
   orderId: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  service: { fontSize: 22, fontWeight: '700', color: '#0f172a', marginTop: 14, marginBottom: 6 },
+  service: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginTop: 14, marginBottom: 2 },
   detail: { color: '#64748b', fontSize: 13, marginTop: 5 },
-  totalRow: { borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 14, paddingTop: 12 },
   total: { fontSize: 16, color: theme.color.secondary, fontWeight: '800' },
+  openHint: { color: theme.color.secondary, fontSize: 12, fontWeight: '700', marginTop: 10 },
   button: { backgroundColor: theme.color.secondary, borderRadius: 12, padding: 13, marginTop: 16, alignItems: 'center' },
   buttonText: { color: '#ffffff', fontWeight: '700' },
+  modalBackdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: 'rgba(15,23,42,0.52)' },
+  modalCard: { width: '100%', maxWidth: 480, maxHeight: '86%', backgroundColor: '#ffffff', borderRadius: 24, padding: 20, elevation: 12 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginTop: 3 },
+  closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#f1f5f9' },
+  modalContent: { paddingBottom: 8 },
+  modalStatus: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 },
+  sectionTitle: { color: '#334155', fontSize: 14, fontWeight: '800', marginTop: 14, marginBottom: 8 },
+  serviceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#eef2f7' },
+  serviceInfo: { flex: 1 },
+  servicePrice: { alignItems: 'flex-end', marginLeft: 12 },
+  serviceName: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
+  price: { color: '#0f172a', fontSize: 14, fontWeight: '800' },
+  priceHint: { color: '#64748b', fontSize: 10, marginTop: 2 },
+  infoBlock: { marginTop: 8 },
+  modalTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 16, paddingTop: 14 },
+  totalLabel: { color: '#334155', fontSize: 14, fontWeight: '700' },
+  claimPass: { alignItems: 'center', marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: '#f0fdf4' },
+  claimTitle: { color: '#166534', fontSize: 16, fontWeight: '800' },
+  claimHint: { color: '#475569', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 5 },
+  qrCard: { backgroundColor: '#ffffff', padding: 12, borderRadius: 14, marginTop: 14 },
+  claimUnavailable: { color: '#64748b', fontSize: 12, lineHeight: 18, marginTop: 16, textAlign: 'center' },
 });

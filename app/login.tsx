@@ -1,3 +1,5 @@
+import AppText from '@/components/ui/app-text';
+import AppTextInput from '@/components/ui/app-text-input';
 import Entypo from '@expo/vector-icons/Entypo';
 import { useRouter } from 'expo-router';
 import { FunctionsHttpError } from '@supabase/supabase-js';
@@ -7,12 +9,10 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { theme } from './theme';
+import { theme } from '../constants/app-theme';
 import { isSupabaseConfigured, requireSupabase } from '../utils/supabase';
 
 export default function Login() {
@@ -105,7 +105,7 @@ export default function Login() {
           <View style={styles.logo}>
             <Entypo name="drop" size={24} color="#ffffff" />
           </View>
-          <Text style={styles.title}>AquaCycle</Text>
+          <AppText style={styles.title}>AquaCycle</AppText>
         </View>
 
         <View style={styles.portalPicker}>
@@ -119,17 +119,17 @@ export default function Login() {
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
               >
-                <Text style={[styles.portalText, selected && styles.portalTextSelected]}>
+                <AppText style={[styles.portalText, selected && styles.portalTextSelected]}>
                   {option === 'customer' ? 'Customer' : 'Staff'}
-                </Text>
+                </AppText>
               </TouchableOpacity>
             );
           })}
         </View>
 
         <View style={styles.credentialContainer}>
-          <Text style={styles.inputLabel}>Username</Text>
-          <TextInput
+          <AppText style={styles.inputLabel}>Username</AppText>
+          <AppTextInput
             placeholder="your_username"
             autoCapitalize="none"
             autoComplete="username"
@@ -142,8 +142,8 @@ export default function Login() {
         </View>
 
         <View style={styles.credentialContainer}>
-          <Text style={styles.inputLabel}>Password</Text>
-          <TextInput
+          <AppText style={styles.inputLabel}>Password</AppText>
+          <AppTextInput
             placeholder="******"
             style={styles.credentialInput}
             value={password}
@@ -160,7 +160,7 @@ export default function Login() {
             style={styles.loginButton}
             activeOpacity={0.55}
           >
-            {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.buttonText}>Login</Text>}
+            {loading ? <ActivityIndicator color="#ffffff" /> : <AppText style={styles.buttonText}>Login</AppText>}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -168,7 +168,7 @@ export default function Login() {
             style={styles.signupLink}
             activeOpacity={0.7}
           >
-            <Text style={styles.signupText}>Create an account</Text>
+            <AppText style={styles.signupText}>Create an account</AppText>
           </TouchableOpacity>
         </View>
       </View>
@@ -281,3 +281,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

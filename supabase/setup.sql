@@ -62,24 +62,34 @@ create table if not exists public.orders (
   address text not null,
   notes text,
   pickup_delivery boolean not null default true,
+  delivery_fee numeric(10, 2) not null default 0 check (delivery_fee >= 0),
   estimated_total numeric(10, 2) not null check (estimated_total >= 0),
   status text not null default 'received'
     check (status in ('received', 'washing', 'drying', 'ready', 'completed', 'cancelled')),
+  completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint orders_service_price_check check (
-    service_name in ('Wash & Fold', 'Ironing', 'Dry Cleaning', 'Wash & Iron')
+    service_name in ('Wash & Fold', 'Ironing', 'Dry Cleaning', 'Wash & Iron', 'Self Service')
     and quantity_unit = case when service_name = 'Dry Cleaning' then 'item' else 'kg' end
-    and estimated_total = round(quantity * case service_name
-      when 'Wash & Fold' then 45
-      when 'Ironing' then 35
-      when 'Dry Cleaning' then 120
-      when 'Wash & Iron' then 65
-    end, 2)
+    and estimated_total = case
+      when service_name = 'Ironing' then 35
+      else round(quantity * case service_name
+        when 'Wash & Fold' then 45
+        when 'Ironing' then 35
+        when 'Dry Cleaning' then 120
+        when 'Wash & Iron' then 65
+        when 'Self Service' then 65
+      end, 2)
+    end
   )
 );
 
 alter table public.orders add column if not exists customer_name text not null default 'Customer';
+alter table public.orders add column if not exists final_quantity numeric(8, 2) check (final_quantity > 0);
+alter table public.orders add column if not exists final_total numeric(10, 2) check (final_total >= 0);
+alter table public.orders add column if not exists delivery_fee numeric(10, 2) not null default 0 check (delivery_fee >= 0);
+alter table public.orders add column if not exists completed_at timestamptz;
 
 create index if not exists orders_user_created_idx
   on public.orders (user_id, created_at desc);
@@ -94,9 +104,9 @@ grant select on public.profiles to authenticated;
 grant update (full_name, phone, address) on public.profiles to authenticated;
 revoke all on public.orders from anon, authenticated;
 grant select on public.orders to authenticated;
-grant insert (user_id, customer_name, service_name, quantity, quantity_unit, address, notes, pickup_delivery, estimated_total)
+grant insert (user_id, customer_name, service_name, quantity, quantity_unit, address, notes, pickup_delivery, delivery_fee, estimated_total)
   on public.orders to authenticated;
-grant update (status) on public.orders to authenticated;
+grant update (status, final_quantity, final_total, address, notes, service_name, quantity_unit, estimated_total, pickup_delivery, delivery_fee, completed_at) on public.orders to authenticated;
 
 drop policy if exists "Profiles are readable by their owner" on public.profiles;
 create policy "Profiles are readable by their owner"
