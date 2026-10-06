@@ -2,11 +2,10 @@ import AppText from '@/components/ui/app-text';
 import AppTextInput from '@/components/ui/app-text-input';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../constants/app-theme';
 import { requireSupabase } from '../../utils/supabase';
@@ -25,69 +25,130 @@ const PROFILE_ITEMS = [
     title: 'Personal information',
     subtitle: 'Manage your account details',
     icon: 'person-outline' as const,
-    message: '',
   },
   {
     title: 'Payment methods',
     subtitle: 'Manage your payment options',
     icon: 'card-outline' as const,
-    message: 'Payment methods will be available here soon.',
   },
   {
     title: 'Laundry preferences',
     subtitle: 'Set your preferred services',
     icon: 'water-outline' as const,
-    message: 'Laundry preferences will be available here soon.',
   },
   {
     title: 'Help & support',
     subtitle: 'Get assistance with AquaCycle',
     icon: 'help-circle-outline' as const,
-    message: 'Please contact the AquaCycle team for help.',
   },
 ];
 
 export default function ProfileScreen() {
   const router = useRouter();
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [draft, setDraft] = useState({ name, email, phone });
+
+  const [draft, setDraft] = useState({
+    name: '',
+    email: '',
+    phone: '',
+  });
+
   const [isEditing, setIsEditing] = useState(false);
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'GCash'>('Cash');
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+
+  const [service, setService] = useState('Wash & Fold');
+  const [folding, setFolding] = useState('Fold clothes');
+  const [notes, setNotes] = useState('');
+
+  const [laundryModalOpen, setLaundryModalOpen] = useState(false);
+  const [laundryLoading, setLaundryLoading] = useState(false);
+  const [laundrySaving, setLaundrySaving] = useState(false);
+
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
+
   useEffect(() => {
     let active = true;
+
     const loadProfile = async () => {
       try {
         const client = requireSupabase();
-        const { data: { user }, error: userError } = await client.auth.getUser();
+
+        const {
+          data: { user },
+          error: userError,
+        } = await client.auth.getUser();
+
         if (userError) throw userError;
-        if (!user) throw new Error('Sign in to view your profile.');
-        const { data, error } = await client.from('profiles').select('full_name, phone, address').eq('id', user.id).single();
+
+        if (!user) {
+          throw new Error('Sign in to view your profile.');
+        }
+
+        const { data, error } = await client
+          .from('profiles')
+          .select('full_name, phone, address')
+          .eq('id', user.id)
+          .single();
+
         if (error) throw error;
+
         if (!active) return;
+
         const profileName = data.full_name || user.email || 'Customer';
+
         setName(profileName);
         setEmail(user.email ?? '');
         setPhone(data.phone ?? '');
-        setDraft({ name: profileName, email: user.email ?? '', phone: data.phone ?? '' });
+
+        setDraft({
+          name: profileName,
+          email: user.email ?? '',
+          phone: data.phone ?? '',
+        });
       } catch (error) {
-        if (active) Alert.alert('Unable to load profile', error instanceof Error ? error.message : 'Please try again.');
+        if (active) {
+          Alert.alert(
+            'Unable to load profile',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
       }
     };
+
     void loadProfile();
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const initials = useMemo(
-    () => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'C',
+    () =>
+      name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? '')
+        .join('') || 'C',
     [name],
   );
 
   const openEditor = () => {
-    setDraft({ name, email, phone });
+    setDraft({
+      name,
+      email,
+      phone,
+    });
+
     setIsEditing(true);
   };
 
@@ -96,40 +157,274 @@ export default function ProfileScreen() {
       Alert.alert('Missing information', 'Enter your name to continue.');
       return;
     }
+
     try {
       const client = requireSupabase();
-      const { data: { user }, error: userError } = await client.auth.getUser();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
+
       if (userError) throw userError;
-      if (!user) throw new Error('Sign in to update your profile.');
-      const nextProfile = { full_name: draft.name.trim(), phone: draft.phone.trim() };
-      const { error } = await client.from('profiles').update(nextProfile).eq('id', user.id);
+
+      if (!user) {
+        throw new Error('Sign in to update your profile.');
+      }
+
+      const nextProfile = {
+        full_name: draft.name.trim(),
+        phone: draft.phone.trim(),
+      };
+
+      const { error } = await client
+        .from('profiles')
+        .update(nextProfile)
+        .eq('id', user.id);
+
       if (error) throw error;
+
       setName(nextProfile.full_name);
       setPhone(nextProfile.phone);
       setIsEditing(false);
     } catch (error) {
-      Alert.alert('Unable to save profile', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert(
+        'Unable to save profile',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
     }
   };
 
-  const selectItem = (title: string, message: string) => {
+  const openPaymentMethods = async () => {
+    setPaymentModalOpen(true);
+    setPaymentLoading(true);
+
+    try {
+      const client = requireSupabase();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user) {
+        throw new Error('Sign in to manage your payment method.');
+      }
+
+      const { data, error } = await client
+        .from('profiles')
+        .select('preferred_payment_method')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      setPaymentMethod(
+        data?.preferred_payment_method === 'gcash' ? 'GCash' : 'Cash',
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to load payment method',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const savePaymentMethod = async () => {
+    setPaymentSaving(true);
+
+    try {
+      const client = requireSupabase();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error('You are not signed in.');
+      }
+
+      const value = paymentMethod === 'GCash' ? 'gcash' : 'cash';
+
+      const { error } = await client
+        .from('profiles')
+        .update({
+          preferred_payment_method: value,
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setPaymentModalOpen(false);
+
+      setTimeout(() => {
+        Alert.alert(
+          'Payment Method Saved',
+          `${paymentMethod} is now your preferred payment method.`,
+        );
+      }, 300);
+    } catch (error) {
+      Alert.alert(
+        'Save Failed',
+        error instanceof Error
+          ? error.message
+          : 'Unable to save your payment method.',
+      );
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  const openLaundryPreferences = async () => {
+    setLaundryModalOpen(true);
+    setLaundryLoading(true);
+
+    try {
+      const client = requireSupabase();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user) {
+        throw new Error('Sign in to manage your laundry preferences.');
+      }
+
+      const { data, error } = await client
+        .from('profiles')
+        .select(
+          'laundry_service_preference, folding_preference, laundry_special_instructions',
+        )
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      setService(
+        data?.laundry_service_preference || 'Wash & Fold',
+      );
+
+      setFolding(
+        data?.folding_preference || 'Fold clothes',
+      );
+
+      setNotes(
+        data?.laundry_special_instructions || '',
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to load preferences',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setLaundryLoading(false);
+    }
+  };
+
+  const saveLaundryPreferences = async () => {
+    setLaundrySaving(true);
+
+    try {
+      const client = requireSupabase();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error('You are not signed in.');
+      }
+
+      const { error } = await client
+        .from('profiles')
+        .update({
+          laundry_service_preference: service,
+          folding_preference: folding,
+          laundry_special_instructions: notes.trim(),
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setLaundryModalOpen(false);
+
+      setTimeout(() => {
+        Alert.alert(
+          'Preferences Saved',
+          'Your laundry preferences have been saved successfully.',
+        );
+      }, 300);
+    } catch (error) {
+      Alert.alert(
+        'Save Failed',
+        error instanceof Error
+          ? error.message
+          : 'Unable to save your laundry preferences.',
+      );
+    } finally {
+      setLaundrySaving(false);
+    }
+  };
+
+  const selectItem = (title: string) => {
     if (title === 'Personal information') {
       openEditor();
       return;
     }
-    Alert.alert(title, message);
+
+    if (title === 'Payment methods') {
+      void openPaymentMethods();
+      return;
+    }
+
+    if (title === 'Laundry preferences') {
+      void openLaundryPreferences();
+      return;
+    }
+
+    if (title === 'Help & support') {
+      setHelpModalOpen(true);
+    }
   };
 
   const signOut = async () => {
     if (signingOut) return;
+
     setSigningOut(true);
+
     try {
       const { error } = await requireSupabase().auth.signOut();
+
       if (error) throw error;
+
       setLogoutConfirmationOpen(false);
       router.replace('/login');
     } catch (error) {
-      Alert.alert('Unable to sign out', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert(
+        'Unable to sign out',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
     } finally {
       setSigningOut(false);
     }
@@ -141,7 +436,12 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f0f0f0" animated />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#f0f0f0"
+        animated
+      />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -149,26 +449,51 @@ export default function ProfileScreen() {
       >
         <View style={styles.headerBlock}>
           <AppText style={styles.categoryTag}>ACCOUNT</AppText>
-          <AppText style={styles.title}>Profile</AppText>
-          <AppText style={styles.headerSubtitle}>Manage your account and laundry settings</AppText>
+
+          <AppText style={styles.title}>
+            Profile
+          </AppText>
+
+          <AppText style={styles.headerSubtitle}>
+            Manage your account and laundry settings
+          </AppText>
         </View>
 
         <View style={[styles.profileCard, theme.color.primary]}>
           <View style={styles.avatarCircle}>
-            <AppText style={styles.avatarText}>{initials}</AppText>
+            <AppText style={styles.avatarText}>
+              {initials}
+            </AppText>
           </View>
+
           <View style={styles.profileMeta}>
-            <AppText style={styles.profileName}>{name}</AppText>
-            <AppText style={styles.profileEmail} numberOfLines={1}>{email}</AppText>
+            <AppText style={styles.profileName}>
+              {name}
+            </AppText>
+
+            <AppText
+              style={styles.profileEmail}
+              numberOfLines={1}
+            >
+              {email}
+            </AppText>
           </View>
+
           <View style={styles.customerBadge}>
-            <AppText style={styles.badgeText}>Customer</AppText>
+            <AppText style={styles.badgeText}>
+              Customer
+            </AppText>
           </View>
         </View>
 
         <View style={styles.sectionHeader}>
-          <AppText style={styles.sectionTitle}>Account settings</AppText>
-          <AppText style={styles.itemCount}>4 options</AppText>
+          <AppText style={styles.sectionTitle}>
+            Account settings
+          </AppText>
+
+          <AppText style={styles.itemCount}>
+            4 options
+          </AppText>
         </View>
 
         <View style={[styles.menuCard, theme.color.lightBox]}>
@@ -177,27 +502,52 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.itemRow}
                 activeOpacity={0.7}
-                onPress={() => selectItem(item.title, item.message)}
+                onPress={() => selectItem(item.title)}
                 accessibilityRole="button"
                 accessibilityLabel={`${item.title}. ${item.subtitle}`}
               >
                 <View style={styles.iconCircle}>
-                  <Ionicons name={item.icon} size={20} color={theme.color.secondary} />
+                  <Ionicons
+                    name={item.icon}
+                    size={20}
+                    color={theme.color.secondary}
+                  />
                 </View>
+
                 <View style={styles.itemMeta}>
-                  <AppText style={styles.itemTitle}>{item.title}</AppText>
-                  <AppText style={styles.itemSubtitle}>{item.subtitle}</AppText>
+                  <AppText style={styles.itemTitle}>
+                    {item.title}
+                  </AppText>
+
+                  <AppText style={styles.itemSubtitle}>
+                    {item.subtitle}
+                  </AppText>
                 </View>
-                <Feather name="chevron-right" size={18} color="#94a3b8" />
+
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color="#94a3b8"
+                />
               </TouchableOpacity>
-              {index < PROFILE_ITEMS.length - 1 && <View style={styles.divider} />}
+
+              {index < PROFILE_ITEMS.length - 1 && (
+                <View style={styles.divider} />
+              )}
             </React.Fragment>
           ))}
         </View>
 
         <View style={styles.infoNote}>
-          <Feather name="info" size={16} color={theme.color.secondary} />
-          <AppText style={styles.infoNoteText}>Your profile is saved to your AquaCycle account.</AppText>
+          <Feather
+            name="info"
+            size={16}
+            color={theme.color.secondary}
+          />
+
+          <AppText style={styles.infoNoteText}>
+            Your profile is saved to your AquaCycle account.
+          </AppText>
         </View>
 
         <TouchableOpacity
@@ -206,8 +556,15 @@ export default function ProfileScreen() {
           onPress={confirmSignOut}
           accessibilityRole="button"
         >
-          <Feather name="log-out" size={18} color="#dc2626" />
-          <AppText style={styles.signOutText}>Sign out</AppText>
+          <Feather
+            name="log-out"
+            size={18}
+            color="#dc2626"
+          />
+
+          <AppText style={styles.signOutText}>
+            Sign out
+          </AppText>
         </TouchableOpacity>
       </ScrollView>
 
@@ -223,31 +580,51 @@ export default function ProfileScreen() {
         >
           <View style={styles.editSheet}>
             <View style={styles.sheetHandle} />
+
             <View style={styles.modalHeader}>
               <View>
-                <AppText style={styles.modalTitle}>Personal information</AppText>
-                <AppText style={styles.modalSubtitle}>Keep your contact details up to date.</AppText>
+                <AppText style={styles.modalTitle}>
+                  Personal information
+                </AppText>
+
+                <AppText style={styles.modalSubtitle}>
+                  Keep your contact details up to date.
+                </AppText>
               </View>
+
               <TouchableOpacity
                 onPress={() => setIsEditing(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Close editor"
                 style={styles.closeButton}
               >
-                <Feather name="x" size={20} color="#64748b" />
+                <Feather
+                  name="x"
+                  size={20}
+                  color="#64748b"
+                />
               </TouchableOpacity>
             </View>
 
-            <AppText style={styles.inputLabel}>Full name</AppText>
+            <AppText style={styles.inputLabel}>
+              Full name
+            </AppText>
+
             <AppTextInput
               value={draft.name}
-              onChangeText={(value) => setDraft((current) => ({ ...current, name: value }))}
+              onChangeText={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  name: value,
+                }))
+              }
               style={styles.input}
               placeholder="Your name"
               autoCapitalize="words"
-              returnKeyType="next"
             />
-            <AppText style={styles.inputLabel}>Email address</AppText>
+
+            <AppText style={styles.inputLabel}>
+              Email address
+            </AppText>
+
             <AppTextInput
               value={draft.email}
               style={styles.input}
@@ -255,41 +632,567 @@ export default function ProfileScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               editable={false}
-              returnKeyType="next"
             />
-            <AppText style={styles.inputLabel}>Phone number (optional)</AppText>
+
+            <AppText style={styles.inputLabel}>
+              Phone number (optional)
+            </AppText>
+
             <AppTextInput
               value={draft.phone}
-              onChangeText={(value) => setDraft((current) => ({ ...current, phone: value }))}
+              onChangeText={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  phone: value,
+                }))
+              }
               style={styles.input}
               placeholder="Your phone number"
               keyboardType="phone-pad"
-              returnKeyType="done"
             />
 
             <TouchableOpacity
               style={[styles.saveButton, theme.color.primary]}
-              onPress={saveProfile}
+              onPress={() => void saveProfile()}
               activeOpacity={0.8}
-              accessibilityRole="button"
             >
-              <AppText style={styles.saveButtonText}>Save changes</AppText>
+              <AppText style={styles.saveButtonText}>
+                Save changes
+              </AppText>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      <Modal visible={logoutConfirmationOpen} transparent animationType="fade" onRequestClose={() => setLogoutConfirmationOpen(false)}>
+
+      <Modal
+        visible={paymentModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPaymentModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.settingsSheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.modalHeader}>
+              <View>
+                <AppText style={styles.modalTitle}>
+                  Payment Methods
+                </AppText>
+
+                <AppText style={styles.modalSubtitle}>
+                  Choose your preferred payment method.
+                </AppText>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setPaymentModalOpen(false)}
+                style={styles.closeButton}
+              >
+                <Feather
+                  name="x"
+                  size={20}
+                  color="#64748b"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {paymentLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={theme.color.secondary}
+                style={styles.loader}
+              />
+            ) : (
+              <>
+                <AppText style={styles.inputLabel}>
+                  Preferred payment method
+                </AppText>
+
+                <TouchableOpacity
+                  style={styles.paymentOption}
+                  onPress={() => setPaymentMethod('Cash')}
+                >
+                  <View style={styles.paymentOptionLeft}>
+                    <View style={styles.paymentIcon}>
+                      <Feather
+                        name="dollar-sign"
+                        size={20}
+                        color={theme.color.secondary}
+                      />
+                    </View>
+
+                    <View>
+                      <AppText style={styles.paymentTitle}>
+                        Cash
+                      </AppText>
+
+                      <AppText style={styles.paymentSubtitle}>
+                        Pay directly at the laundry shop.
+                      </AppText>
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.radio,
+                      paymentMethod === 'Cash' &&
+                        styles.radioSelected,
+                    ]}
+                  >
+                    {paymentMethod === 'Cash' && (
+                      <View style={styles.radioDot} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
+                  style={styles.paymentOption}
+                  onPress={() => setPaymentMethod('GCash')}
+                >
+                  <View style={styles.paymentOptionLeft}>
+                    <View style={styles.paymentIcon}>
+                      <Feather
+                        name="smartphone"
+                        size={20}
+                        color={theme.color.secondary}
+                      />
+                    </View>
+
+                    <View>
+                      <AppText style={styles.paymentTitle}>
+                        GCash
+                      </AppText>
+
+                      <AppText style={styles.paymentSubtitle}>
+                        Record your GCash payment with AquaCycle staff.
+                      </AppText>
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.radio,
+                      paymentMethod === 'GCash' &&
+                        styles.radioSelected,
+                    ]}
+                  >
+                    {paymentMethod === 'GCash' && (
+                      <View style={styles.radioDot} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.saveButton,
+                    theme.color.primary,
+                    paymentSaving && styles.disabledButton,
+                  ]}
+                  onPress={() => void savePaymentMethod()}
+                  disabled={paymentSaving}
+                  activeOpacity={0.8}
+                >
+                  <AppText style={styles.saveButtonText}>
+                    {paymentSaving
+                      ? 'Saving...'
+                      : 'Save Payment Method'}
+                  </AppText>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={laundryModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLaundryModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.settingsSheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.modalHeader}>
+              <View>
+                <AppText style={styles.modalTitle}>
+                  Laundry Preferences
+                </AppText>
+
+                <AppText style={styles.modalSubtitle}>
+                  Set your preferred laundry options.
+                </AppText>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setLaundryModalOpen(false)}
+                style={styles.closeButton}
+              >
+                <Feather
+                  name="x"
+                  size={20}
+                  color="#64748b"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {laundryLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={theme.color.secondary}
+                style={styles.loader}
+              />
+            ) : (
+              <>
+                <AppText style={styles.inputLabel}>
+                  Preferred service
+                </AppText>
+
+                {[
+                  'Wash & Fold',
+                  'Wash Only',
+                  'Dry Only',
+                  'Ironing',
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={styles.choice}
+                    onPress={() => setService(item)}
+                  >
+                    <AppText style={styles.choiceText}>
+                      {item}
+                    </AppText>
+
+                    <View
+                      style={[
+                        styles.radio,
+                        service === item &&
+                          styles.radioSelected,
+                      ]}
+                    >
+                      {service === item && (
+                        <View style={styles.radioDot} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+
+                <View style={styles.divider} />
+
+                <AppText style={styles.inputLabel}>
+                  Folding preference
+                </AppText>
+
+                {['Fold clothes', 'Do not fold'].map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={styles.choice}
+                    onPress={() => setFolding(item)}
+                  >
+                    <AppText style={styles.choiceText}>
+                      {item}
+                    </AppText>
+
+                    <View
+                      style={[
+                        styles.radio,
+                        folding === item &&
+                          styles.radioSelected,
+                      ]}
+                    >
+                      {folding === item && (
+                        <View style={styles.radioDot} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+
+                <View style={styles.divider} />
+
+                <AppText style={styles.inputLabel}>
+                  Special instructions
+                </AppText>
+
+                <AppTextInput
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Example: Please separate white clothes."
+                  style={styles.preferenceInput}
+                  multiline
+                />
+
+                <TouchableOpacity
+                  style={[
+                    styles.saveButton,
+                    theme.color.primary,
+                    laundrySaving && styles.disabledButton,
+                  ]}
+                  onPress={() => void saveLaundryPreferences()}
+                  disabled={laundrySaving}
+                  activeOpacity={0.8}
+                >
+                  <AppText style={styles.saveButtonText}>
+                    {laundrySaving
+                      ? 'Saving...'
+                      : 'Save preferences'}
+                  </AppText>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={helpModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHelpModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.settingsSheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.modalHeader}>
+              <View style={styles.helpHeaderContent}>
+                <AppText style={styles.modalTitle}>
+                  Help & Support
+                </AppText>
+
+                <AppText style={styles.modalSubtitle}>
+                  Learn how to use AquaCycle and manage your laundry.
+                </AppText>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setHelpModalOpen(false)}
+                style={styles.closeButton}
+              >
+                <Feather
+                  name="x"
+                  size={20}
+                  color="#64748b"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.helpContent}
+            >
+              <View style={styles.supportWelcome}>
+                <View style={styles.supportWelcomeIcon}>
+                  <Feather
+                    name="life-buoy"
+                    size={24}
+                    color={theme.color.secondary}
+                  />
+                </View>
+
+                <View style={styles.supportWelcomeText}>
+                  <AppText style={styles.supportWelcomeTitle}>
+                    AquaCycle Customer Support
+                  </AppText>
+
+                  <AppText style={styles.supportWelcomeDescription}>
+                    Find helpful information about your orders, payments,
+                    laundry preferences, and account.
+                  </AppText>
+                </View>
+              </View>
+
+              <AppText style={styles.helpSectionTitle}>
+                Common Questions
+              </AppText>
+
+              <View style={styles.helpCard}>
+                <View style={styles.helpCardIcon}>
+                  <Feather
+                    name="clock"
+                    size={20}
+                    color={theme.color.secondary}
+                  />
+                </View>
+
+                <View style={styles.helpCardContent}>
+                  <AppText style={styles.helpCardTitle}>
+                    Order Status
+                  </AppText>
+
+                  <AppText style={styles.helpCardText}>
+                    Open the Orders tab to check your laundry order status.
+                    Your order may be Pending, Washing, Drying, Ready for
+                    Pickup, or Completed.
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.helpCard}>
+                <View style={styles.helpCardIcon}>
+                  <Feather
+                    name="credit-card"
+                    size={20}
+                    color={theme.color.secondary}
+                  />
+                </View>
+
+                <View style={styles.helpCardContent}>
+                  <AppText style={styles.helpCardTitle}>
+                    Payment Methods
+                  </AppText>
+
+                  <AppText style={styles.helpCardText}>
+                    In Profile, open Payment Methods to choose Cash or GCash
+                    as your preferred payment method. GCash payments are
+                    recorded and verified by AquaCycle staff.
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.helpCard}>
+                <View style={styles.helpCardIcon}>
+                  <Feather
+                    name="droplet"
+                    size={20}
+                    color={theme.color.secondary}
+                  />
+                </View>
+
+                <View style={styles.helpCardContent}>
+                  <AppText style={styles.helpCardTitle}>
+                    Laundry Preferences
+                  </AppText>
+
+                  <AppText style={styles.helpCardText}>
+                    In Profile, open Laundry Preferences to choose your
+                    preferred service, folding option, and special
+                    instructions for your laundry.
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.helpCard}>
+                <View style={styles.helpCardIcon}>
+                  <Feather
+                    name="package"
+                    size={20}
+                    color={theme.color.secondary}
+                  />
+                </View>
+
+                <View style={styles.helpCardContent}>
+                  <AppText style={styles.helpCardTitle}>
+                    Laundry Claim
+                  </AppText>
+
+                  <AppText style={styles.helpCardText}>
+                    Check the Orders tab for your laundry status. When your
+                    order is Ready for Pickup, follow the instructions from
+                    the AquaCycle staff when claiming your laundry.
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.helpCard}>
+                <View style={styles.helpCardIcon}>
+                  <Feather
+                    name="user"
+                    size={20}
+                    color={theme.color.secondary}
+                  />
+                </View>
+
+                <View style={styles.helpCardContent}>
+                  <AppText style={styles.helpCardTitle}>
+                    Account Information
+                  </AppText>
+
+                  <AppText style={styles.helpCardText}>
+                    In Profile, open Personal Information to update your
+                    name and phone number. Your email address remains
+                    connected to your AquaCycle account.
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.supportNote}>
+                <Feather
+                  name="info"
+                  size={18}
+                  color={theme.color.secondary}
+                />
+
+                <AppText style={styles.supportNoteText}>
+                  For concerns about your laundry order, payment, or account,
+                  please approach the AquaCycle laundry staff for assistance.
+                </AppText>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={logoutConfirmationOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setLogoutConfirmationOpen(false)
+        }
+      >
         <View style={styles.logoutBackdrop}>
           <View style={styles.logoutCard}>
-            <View style={styles.logoutIcon}><Feather name="log-out" size={22} color="#dc2626" /></View>
-            <AppText style={styles.logoutTitle}>Sign out?</AppText>
-            <AppText style={styles.logoutMessage}>Are you sure you want to sign out? You will return to the login screen.</AppText>
+            <View style={styles.logoutIcon}>
+              <Feather
+                name="log-out"
+                size={22}
+                color="#dc2626"
+              />
+            </View>
+
+            <AppText style={styles.logoutTitle}>
+              Sign out?
+            </AppText>
+
+            <AppText style={styles.logoutMessage}>
+              Are you sure you want to sign out? You will return to
+              the login screen.
+            </AppText>
+
             <View style={styles.logoutActions}>
-              <TouchableOpacity style={styles.logoutCancelButton} onPress={() => setLogoutConfirmationOpen(false)} disabled={signingOut} accessibilityRole="button">
-                <AppText style={styles.logoutCancelText}>Cancel</AppText>
+              <TouchableOpacity
+                style={styles.logoutCancelButton}
+                onPress={() =>
+                  setLogoutConfirmationOpen(false)
+                }
+                disabled={signingOut}
+              >
+                <AppText style={styles.logoutCancelText}>
+                  Cancel
+                </AppText>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.logoutConfirmButton} onPress={() => { void signOut(); }} disabled={signingOut} accessibilityRole="button">
-                {signingOut ? <ActivityIndicator color="#ffffff" /> : <AppText style={styles.logoutConfirmText}>Sign out</AppText>}
+
+              <TouchableOpacity
+                style={styles.logoutConfirmButton}
+                onPress={() => {
+                  void signOut();
+                }}
+                disabled={signingOut}
+              >
+                {signingOut ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <AppText style={styles.logoutConfirmText}>
+                    Sign out
+                  </AppText>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -304,14 +1207,17 @@ const styles = StyleSheet.create({
     flex: 1,
     ...theme.color.lightBackground,
   },
+
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 36,
   },
+
   headerBlock: {
     marginBottom: 20,
   },
+
   categoryTag: {
     fontSize: 11,
     fontWeight: '800',
@@ -319,6 +1225,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
+
   title: {
     fontSize: 32,
     fontWeight: '800',
@@ -326,11 +1233,13 @@ const styles = StyleSheet.create({
     fontFamily: 'serif',
     marginTop: 4,
   },
+
   headerSubtitle: {
     fontSize: 13,
     color: '#64748b',
     marginTop: 5,
   },
+
   profileCard: {
     borderRadius: 20,
     padding: 18,
@@ -339,6 +1248,7 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     elevation: 2,
   },
+
   avatarCircle: {
     width: 54,
     height: 54,
@@ -346,55 +1256,65 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     ...theme.spacing.trueCenter,
   },
+
   avatarText: {
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '800',
   },
+
   profileMeta: {
     flex: 1,
     minWidth: 0,
     marginLeft: 14,
   },
+
   profileName: {
     fontSize: 17,
     fontWeight: '800',
     color: '#ffffff',
     fontFamily: 'serif',
   },
+
   profileEmail: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
     marginTop: 3,
   },
+
   customerBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 9,
   },
+
   badgeText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#ffffff',
   },
+
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
   },
+
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
     color: '#0f172a',
     fontFamily: 'serif',
   },
+
   itemCount: {
     fontSize: 12,
     color: '#64748b',
     fontWeight: '600',
   },
+
   menuCard: {
     borderRadius: 20,
     paddingHorizontal: 16,
@@ -402,11 +1322,13 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     marginBottom: 16,
   },
+
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 15,
   },
+
   iconCircle: {
     width: 42,
     height: 42,
@@ -414,25 +1336,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f4fe',
     ...theme.spacing.trueCenter,
   },
+
   itemMeta: {
     flex: 1,
     marginLeft: 14,
   },
+
   itemTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#0f172a',
     textTransform: 'capitalize',
   },
+
   itemSubtitle: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 3,
   },
+
   divider: {
     height: 1,
     backgroundColor: '#f1f5f9',
   },
+
   infoNote: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -442,12 +1369,14 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 20,
   },
+
   infoNoteText: {
     flex: 1,
     color: '#475569',
     fontSize: 12,
     lineHeight: 17,
   },
+
   signOutButton: {
     flexDirection: 'row',
     gap: 9,
@@ -459,47 +1388,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
   },
+
   signOutText: {
     color: '#dc2626',
     fontSize: 15,
     fontWeight: '700',
   },
-  logoutBackdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 22,
-    backgroundColor: 'rgba(15,23,42,0.52)',
-  },
-  logoutCard: {
-    width: '100%',
-    maxWidth: 380,
-    borderRadius: 22,
-    padding: 22,
-    backgroundColor: '#ffffff',
-    elevation: 12,
-  },
-  logoutIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#fef2f2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  logoutTitle: { color: '#0f172a', fontSize: 20, fontWeight: '800' },
-  logoutMessage: { color: '#64748b', fontSize: 14, lineHeight: 20, marginTop: 7 },
-  logoutActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 22 },
-  logoutCancelButton: { minHeight: 44, paddingHorizontal: 17, justifyContent: 'center', borderRadius: 12, backgroundColor: '#f1f5f9' },
-  logoutCancelText: { color: '#334155', fontSize: 13, fontWeight: '700' },
-  logoutConfirmButton: { minHeight: 44, minWidth: 104, paddingHorizontal: 17, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#dc2626' },
-  logoutConfirmText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
+
   modalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(15,23,42,0.4)',
   },
+
   editSheet: {
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
@@ -508,6 +1409,17 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 30,
   },
+
+  settingsSheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: 30,
+    maxHeight: '90%',
+  },
+
   sheetHandle: {
     width: 38,
     height: 4,
@@ -516,23 +1428,27 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 18,
   },
+
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 18,
   },
+
   modalTitle: {
     fontSize: 21,
     fontWeight: '800',
     color: '#0f172a',
     fontFamily: 'serif',
   },
+
   modalSubtitle: {
     fontSize: 13,
     color: '#64748b',
     marginTop: 3,
   },
+
   closeButton: {
     width: 36,
     height: 36,
@@ -540,6 +1456,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     ...theme.spacing.trueCenter,
   },
+
   inputLabel: {
     fontSize: 12,
     fontWeight: '700',
@@ -547,6 +1464,7 @@ const styles = StyleSheet.create({
     marginBottom: 7,
     marginTop: 8,
   },
+
   input: {
     minHeight: 48,
     borderRadius: 12,
@@ -557,16 +1475,290 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     fontSize: 14,
   },
+
+  preferenceInput: {
+    minHeight: 80,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#dbe3ef',
+    backgroundColor: '#ffffff',
+    padding: 12,
+    color: '#0f172a',
+    fontSize: 14,
+    textAlignVertical: 'top',
+  },
+
   saveButton: {
     alignItems: 'center',
     borderRadius: 14,
     paddingVertical: 15,
     marginTop: 22,
   },
+
   saveButtonText: {
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '800',
   },
-});
 
+  disabledButton: {
+    opacity: 0.6,
+  },
+
+  loader: {
+    marginVertical: 35,
+  },
+
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+  },
+
+  paymentOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  paymentIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#f0f4fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+  },
+
+  paymentTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+
+  paymentSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 3,
+  },
+
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  radioSelected: {
+    borderColor: theme.color.secondary,
+  },
+
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.color.secondary,
+  },
+
+  choice: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  choiceText: {
+    fontSize: 14,
+    color: '#334155',
+  },
+
+  helpHeaderContent: {
+    flex: 1,
+    paddingRight: 12,
+  },
+
+  helpContent: {
+    paddingBottom: 10,
+  },
+
+  supportWelcome: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#eaf1ff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+
+  supportWelcomeIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+  },
+
+  supportWelcomeText: {
+    flex: 1,
+  },
+
+  supportWelcomeTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+
+  supportWelcomeDescription: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#64748b',
+    marginTop: 4,
+  },
+
+  helpSectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 10,
+  },
+
+  helpCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 15,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+  },
+
+  helpCardIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: '#eaf1ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+  },
+
+  helpCardContent: {
+    flex: 1,
+  },
+
+  helpCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+    lineHeight: 20,
+  },
+
+  helpCardText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#64748b',
+    marginTop: 4,
+  },
+
+  supportNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 6,
+  },
+
+  supportNoteText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#475569',
+    marginLeft: 10,
+  },
+
+  logoutBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 22,
+    backgroundColor: 'rgba(15,23,42,0.52)',
+  },
+
+  logoutCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 22,
+    padding: 22,
+    backgroundColor: '#ffffff',
+    elevation: 12,
+  },
+
+  logoutIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
+  logoutTitle: {
+    color: '#0f172a',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+
+  logoutMessage: {
+    color: '#64748b',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 7,
+  },
+
+  logoutActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 22,
+  },
+
+  logoutCancelButton: {
+    minHeight: 44,
+    paddingHorizontal: 17,
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+  },
+
+  logoutCancelText: {
+    color: '#334155',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  logoutConfirmButton: {
+    minHeight: 44,
+    minWidth: 104,
+    paddingHorizontal: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#dc2626',
+  },
+
+  logoutConfirmText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+});
