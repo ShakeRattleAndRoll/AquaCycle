@@ -29,12 +29,18 @@ type Order = {
   final_total: number | null;
   status: string;
   created_at: string;
+  payment_method?: 'cash' | 'gcash';
+  payment_reference?: string | null;
+  payment_status?: 'unpaid' | 'pending_verification' | 'paid';
   order_services?: OrderService[];
 };
 
 const STATUS_LABELS: Record<string, string> = {
   received: 'Order received', washing: 'Washing', drying: 'Drying',
   ready: 'Ready for pickup', completed: 'Completed', cancelled: 'Cancelled',
+};
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  unpaid: 'Unpaid', pending_verification: 'Awaiting staff verification', paid: 'Paid',
 };
 const orderAmount = (order: Order) => Number(order.final_total ?? (Number(order.estimated_total) + Number(order.delivery_fee ?? 0)));
 
@@ -157,6 +163,13 @@ export default function OrdersDetails() {
                   {selectedOrder.pickup_delivery ? <AppText style={styles.detail}>Delivery fee: ${Number(selectedOrder.delivery_fee).toFixed(2)}</AppText> : null}
                   <AppText style={styles.detail}>{selectedOrder.address}</AppText>
                 </View>
+                <View style={styles.infoBlock}>
+                  <AppText style={styles.sectionTitle}>Payment</AppText>
+                  <AppText style={styles.detail}>Method: {selectedOrder.payment_method === 'gcash' ? 'GCash' : 'Cash'}</AppText>
+                  <AppText style={styles.detail}>Status: {PAYMENT_STATUS_LABELS[selectedOrder.payment_status ?? 'unpaid'] ?? 'Unpaid'}</AppText>
+                  {selectedOrder.payment_reference ? <AppText style={styles.detail}>GCash reference: {selectedOrder.payment_reference}</AppText> : null}
+                  {selectedOrder.payment_status === 'pending_verification' ? <AppText style={styles.paymentHint}>Staff will verify the GCash reference manually.</AppText> : null}
+                </View>
                 {selectedOrder.notes ? <View style={styles.infoBlock}><AppText style={styles.sectionTitle}>Notes</AppText><AppText style={styles.detail}>{selectedOrder.notes}</AppText></View> : null}
                 <View style={styles.modalTotal}>
                   <AppText style={styles.totalLabel}>{selectedOrder.final_total !== null ? 'Final total' : 'Estimated total'}</AppText>
@@ -198,6 +211,7 @@ const styles = StyleSheet.create({
   orderId: { fontSize: 12, color: '#64748b', fontWeight: '700' },
   service: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginTop: 14, marginBottom: 2 },
   detail: { color: '#64748b', fontSize: 13, marginTop: 5 },
+  paymentHint: { color: theme.color.secondary, fontSize: 12, lineHeight: 18, marginTop: 7 },
   total: { fontSize: 16, color: theme.color.secondary, fontWeight: '800' },
   openHint: { color: theme.color.secondary, fontSize: 12, fontWeight: '700', marginTop: 10 },
   button: { backgroundColor: theme.color.secondary, borderRadius: 12, padding: 13, marginTop: 16, alignItems: 'center' },

@@ -36,9 +36,10 @@ export default function OrdersRoute() {
   return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator color={theme.color.secondary} /></View>;
 }
 type OrderService = { service_name: string; quantity: number; quantity_unit: string; estimated_total: number; final_quantity: number | null; final_total: number | null };
-type Order = { id: string; customer_name: string; service_name: string; quantity: number; quantity_unit: string; estimated_total: number; delivery_fee: number; address: string; notes: string | null; pickup_delivery: boolean; final_quantity: number | null; final_total: number | null; status: string; created_at: string; completed_at: string | null; order_services?: OrderService[] };
+type Order = { id: string; customer_name: string; service_name: string; quantity: number; quantity_unit: string; estimated_total: number; delivery_fee: number; address: string; notes: string | null; pickup_delivery: boolean; final_quantity: number | null; final_total: number | null; status: string; created_at: string; completed_at: string | null; payment_method?: 'cash' | 'gcash'; payment_reference?: string | null; payment_status?: 'unpaid' | 'pending_verification' | 'paid'; payment_verified_at?: string | null; payment_verified_by?: string | null; order_services?: OrderService[] };
 const FILTER_KEYS = ['Active', 'New', 'In progress', 'Ready'] as const;
 const STATUS_LABELS: Record<string, string> = { received: 'New', washing: 'Washing', drying: 'Drying', ready: 'Ready', completed: 'Completed', cancelled: 'Cancelled' };
+const PAYMENT_STATUS_LABELS: Record<string, string> = { unpaid: 'Unpaid', pending_verification: 'Awaiting verification', paid: 'Paid' };
 const SERVICES = [
   { name: 'Wash & Fold', unit: 'kg', rate: 45 }, { name: 'Ironing', unit: 'kg', rate: 35 },
   { name: 'Dry Cleaning', unit: 'item', rate: 120 }, { name: 'Wash & Iron', unit: 'kg', rate: 65 },
@@ -59,6 +60,7 @@ export function StaffOrdersScreen() {
   const [serviceDrafts, setServiceDrafts] = useState<string[]>([SERVICES[0].name]);
   const [pickupDraft, setPickupDraft] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
@@ -194,6 +196,43 @@ export function StaffOrdersScreen() {
     } finally { setSaving(false); }
   };
 
+  const confirmPayment = () => {
+    if (!selectedOrder || selectedOrder.payment_status === 'paid') return;
+    const method = selectedOrder.payment_method ?? 'cash';
+    const message = method === 'gcash'
+      ? `Confirm that you checked GCash and verified reference ${selectedOrder.payment_reference ?? ''}?`
+      : 'Confirm that you received the cash payment for this order?';
+    Alert.alert('Verify payment', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Mark as paid', onPress: () => { void markPaymentAsPaid(); } },
+    ]);
+  };
+
+  const markPaymentAsPaid = async () => {
+    if (!selectedOrder || verifyingPayment) return;
+    setVerifyingPayment(true);
+    try {
+      const client = requireSupabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('Sign in again to verify this payment.');
+      const { data: payment, error } = await client.from('orders')
+        .update({ payment_status: 'paid', payment_verified_at: new Date().toISOString(), payment_verified_by: user.id })
+        .eq('id', selectedOrder.id)
+        .neq('payment_status', 'paid')
+        .select('payment_status,payment_verified_at,payment_verified_by')
+        .single();
+      if (error) throw error;
+      const verifiedOrder = { ...selectedOrder, ...payment };
+      setOrders((current) => current.map((order) => order.id === selectedOrder.id ? { ...order, ...payment } : order));
+      setSelectedOrder(verifiedOrder);
+    } catch (error) {
+      Alert.alert('Unable to verify payment', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setVerifyingPayment(false);
+    }
+  };
+
   return (
     <View style={staffStyles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f0f0f0" animated />
@@ -274,6 +313,19 @@ export function StaffOrdersScreen() {
               {expandedSection === 'notes' && <AppTextInput style={[staffStyles.modalInput, staffStyles.modalMultiline]} value={notesDraft} onChangeText={setNotesDraft} placeholder="Add order notes" multiline />}
               <AppText style={staffStyles.modalLabel}>Service method</AppText>
               <AppText style={staffStyles.modalReadOnly}>{pickupDraft ? `Pickup & delivery | $${Number(selectedOrder.delivery_fee ?? 0).toFixed(2)} fee` : 'Store drop-off | Free'}</AppText>
+               <AppText style={staffStyles.modalLabel}>Payment</AppText>
+               <AppText style={staffStyles.modalReadOnly}>
+                 {(selectedOrder.payment_method ?? 'cash') === 'gcash' ? 'GCash' : 'Cash'} | {PAYMENT_STATUS_LABELS[selectedOrder.payment_status ?? 'unpaid'] ?? 'Unpaid'}
+               </AppText>
+               {selectedOrder.payment_reference ? <AppText style={staffStyles.paymentReference}>Reference: {selectedOrder.payment_reference}</AppText> : null}
+               {selectedOrder.payment_status !== 'paid' ? <>
+                 <AppText style={staffStyles.paymentVerifyHint}>
+                   {(selectedOrder.payment_method ?? 'cash') === 'gcash' ? 'Check the reference against the shop’s GCash transaction before confirming.' : 'Confirm after receiving the cash payment.'}
+                 </AppText>
+                 <TouchableOpacity style={staffStyles.verifyPaymentButton} onPress={confirmPayment} disabled={verifyingPayment || saving}>
+                   {verifyingPayment ? <ActivityIndicator color="#ffffff" /> : <AppText style={staffStyles.verifyPaymentText}>Mark payment as paid</AppText>}
+                 </TouchableOpacity>
+               </> : null}
               {selectedMeasuredServices.length > 0 ? <>
                 <AppText style={staffStyles.modalLabel}>Final {selectedMeasuredServices.every((service) => service.unit === 'kg') ? 'weight (kg)' : selectedMeasuredServices.every((service) => service.unit === 'item') ? 'item count' : 'amount (kg / items)'}</AppText>
                 <AppTextInput style={staffStyles.modalInput} value={finalQuantityDraft} onChangeText={setFinalQuantityDraft} keyboardType="decimal-pad" placeholder="Enter final amount for the order" />
@@ -344,6 +396,10 @@ const staffStyles = StyleSheet.create({
   modalInput: { minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0f172a' },
   helpText: { color: '#64748b', fontSize: 12, marginTop: 6 },
   modalReadOnly: { color: '#475569', fontSize: 14, paddingVertical: 8 },
+  paymentReference: { color: '#334155', fontSize: 13, fontWeight: '700', marginTop: 3 },
+  paymentVerifyHint: { color: '#64748b', fontSize: 12, lineHeight: 18, marginTop: 8 },
+  verifyPaymentButton: { minHeight: 46, marginTop: 12, borderRadius: 12, backgroundColor: '#15803d', alignItems: 'center', justifyContent: 'center' },
+  verifyPaymentText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
   modalMultiline: { minHeight: 76, textAlignVertical: 'top' },
   modalPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 },
   modalPriceLabel: { color: '#475569', fontSize: 12, fontWeight: '600' },
@@ -372,6 +428,8 @@ export function CustomerCreateOrderScreen() {
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [pickup, setPickup] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash'>('cash');
+  const [paymentReference, setPaymentReference] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [confirmationText, setConfirmationText] = useState('');
@@ -404,12 +462,14 @@ export function CustomerCreateOrderScreen() {
   const persistOrder = async (client: ReturnType<typeof requireSupabase>, user: { id: string; email?: string | null }) => {
     const { data: profile, error: profileError } = await client.from('profiles').select('full_name').eq('id', user.id).single();
     if (profileError) throw profileError;
-    const { data: orderId, error } = await client.rpc('create_order_with_services', {
+    const { data: orderId, error } = await client.rpc('create_order_with_payment', {
       p_customer_name: profile.full_name || user.email || 'Customer',
       p_address: address.trim(),
       p_notes: notes.trim() || null,
       p_pickup_delivery: pickup,
       p_service_names: chosenServices.map((selected) => selected.name),
+      p_payment_method: paymentMethod,
+      p_payment_reference: paymentMethod === 'gcash' ? paymentReference.trim() : null,
     });
     if (error) throw error;
     if (!orderId) throw new Error('The order was created without an order ID.');
@@ -420,6 +480,14 @@ export function CustomerCreateOrderScreen() {
     if (saving) return;
     if (!chosenServices.length || !address.trim()) {
       Alert.alert('Check your order', 'Choose at least one service and enter a pickup or delivery address.');
+      return;
+    }
+    if (paymentMethod === 'gcash' && !paymentReference.trim()) {
+      Alert.alert('GCash reference required', 'Enter the reference number from your GCash payment.');
+      return;
+    }
+    if (paymentReference.trim().length > 100) {
+      Alert.alert('Reference is too long', 'Keep the payment reference under 100 characters.');
       return;
     }
     setSaving(true);
@@ -635,6 +703,54 @@ export function CustomerCreateOrderScreen() {
         </TouchableOpacity>
       </View>
 
+      <AppText style={customerStyles.sectionTitle}>Payment method</AppText>
+      <View style={customerStyles.optionContainer}>
+        <TouchableOpacity
+          style={[customerStyles.optionButton, paymentMethod === 'cash' && customerStyles.optionButtonSelected]}
+          onPress={() => setPaymentMethod('cash')}
+          activeOpacity={0.8}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: paymentMethod === 'cash' }}
+        >
+          <Ionicons name="cash-outline" size={22} color={paymentMethod === 'cash' ? '#ffffff' : theme.color.secondary} />
+          <View style={customerStyles.optionTextContainer}>
+            <AppText style={[customerStyles.optionTitle, paymentMethod === 'cash' && customerStyles.optionTitleSelected]}>Cash</AppText>
+            <AppText style={[customerStyles.optionSubtitle, paymentMethod === 'cash' && customerStyles.optionSubtitleSelected]}>Pay on delivery or at the shop</AppText>
+          </View>
+          {paymentMethod === 'cash' ? <Ionicons name="checkmark-circle" size={20} color="#ffffff" /> : null}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[customerStyles.optionButton, paymentMethod === 'gcash' && customerStyles.optionButtonSelected]}
+          onPress={() => setPaymentMethod('gcash')}
+          activeOpacity={0.8}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: paymentMethod === 'gcash' }}
+        >
+          <Ionicons name="phone-portrait-outline" size={22} color={paymentMethod === 'gcash' ? '#ffffff' : theme.color.secondary} />
+          <View style={customerStyles.optionTextContainer}>
+            <AppText style={[customerStyles.optionTitle, paymentMethod === 'gcash' && customerStyles.optionTitleSelected]}>GCash</AppText>
+            <AppText style={[customerStyles.optionSubtitle, paymentMethod === 'gcash' && customerStyles.optionSubtitleSelected]}>Manual transfer; staff will verify</AppText>
+          </View>
+          {paymentMethod === 'gcash' ? <Ionicons name="checkmark-circle" size={20} color="#ffffff" /> : null}
+        </TouchableOpacity>
+      </View>
+      {paymentMethod === 'gcash' ? (
+        <View style={[customerStyles.formCard, customerStyles.paymentReferenceCard]}>
+          <AppText style={customerStyles.label}>GCash payment reference</AppText>
+          <AppText style={customerStyles.fieldHint}>After paying with the store’s GCash details, enter the receipt reference. Staff will verify it manually.</AppText>
+          <AppTextInput
+            style={customerStyles.input}
+            placeholder="Enter reference number"
+            placeholderTextColor="#94a3b8"
+            value={paymentReference}
+            onChangeText={setPaymentReference}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={100}
+          />
+        </View>
+      ) : null}
+
       <View style={customerStyles.summaryCard}>
         <View style={customerStyles.summaryRow}>
           <AppText style={customerStyles.summaryLabel}>Estimated total</AppText>
@@ -819,6 +935,7 @@ const customerStyles = StyleSheet.create({
     fontFamily: 'Roboto_700Bold',
   },
   fieldHint: { fontSize: 12, lineHeight: 18, color: '#64748b', marginTop: -3, marginBottom: 12, fontFamily: 'Roboto_400Regular' },
+  paymentReferenceCard: { marginTop: -10, marginBottom: 20 },
 
   estimateAmount: { color: theme.color.secondary, fontSize: 24, fontWeight: '800', marginBottom: 14, fontFamily: 'Montserrat_700Bold' },
 
