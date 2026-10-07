@@ -2,12 +2,14 @@ import AppText from '@/components/ui/app-text';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 const SERVICES = [
   {
     id: '1',
+    orderServiceName: 'Wash & Fold',
     title: 'Wash & Fold',
     price: '+45/kg',
     icon: 'washing-machine',
@@ -17,8 +19,9 @@ const SERVICES = [
   },
   {
     id: '2',
+    orderServiceName: 'Dry Cleaning',
     title: 'Dry Clean',
-    price: '+75/kg',
+    price: '+120/item',
     icon: 'dry-cleaning', 
     library: 'MaterialIcons',
     bgColor: '#ebdfcf',
@@ -26,6 +29,7 @@ const SERVICES = [
   },
   {
     id: '3',
+    orderServiceName: 'Ironing',
     title: 'Ironing',
     price: '₱35 flat',
     icon: 'iron',
@@ -35,8 +39,9 @@ const SERVICES = [
   },
   {
     id: '4',
+    orderServiceName: 'Self Service',
     title: 'Self-Service',
-    price: '+35/kg',
+    price: '+65/kg',
     icon: 'timer-outline',
     library: 'MaterialCommunityIcons',
     bgColor: '#d1f1c9',
@@ -45,6 +50,8 @@ const SERVICES = [
 ];
 
 export default function ServicesList() {
+  const router = useRouter();
+
   return (
     <ScrollView
       horizontal
@@ -52,7 +59,14 @@ export default function ServicesList() {
       contentContainerStyle={styles.scrollContainer}
     >
       {SERVICES.map((item) => (
-        <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.8}>
+        <TouchableOpacity
+          key={item.id}
+          style={styles.card}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Order ${item.title}, ${item.price}`}
+          onPress={() => router.push({ pathname: '/orders', params: { service: item.orderServiceName } })}
+        >
 
           <View style={[styles.iconBox, { backgroundColor: item.bgColor }]}>
             {item.library === 'MaterialIcons' ? (

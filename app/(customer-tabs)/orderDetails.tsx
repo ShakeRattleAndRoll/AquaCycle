@@ -2,8 +2,8 @@ import AppText from '@/components/ui/app-text';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import QRCode from 'react-native-qrcode-svg';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { requireSupabase } from '../../utils/supabase';
 import { theme } from '../../constants/app-theme';
@@ -46,6 +46,7 @@ const orderAmount = (order: Order) => Number(order.final_total ?? (Number(order.
 
 export default function OrdersDetails() {
   const router = useRouter();
+  const { orderId: requestedOrderId } = useLocalSearchParams<{ orderId?: string | string[] }>();
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +74,13 @@ export default function OrdersDetails() {
     void loadOrders();
     return () => setSelectedOrder(null);
   }, [loadOrders]));
+
+  useEffect(() => {
+    const orderId = Array.isArray(requestedOrderId) ? requestedOrderId[0] : requestedOrderId;
+    if (!orderId) return;
+    const matchingOrder = orders.find((order) => order.id === orderId);
+    if (matchingOrder) setSelectedOrder(matchingOrder);
+  }, [orders, requestedOrderId]);
 
   return (
     <View style={styles.page}>

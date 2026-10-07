@@ -1,7 +1,7 @@
 import AppText from '@/components/ui/app-text';
 import AppTextInput from '@/components/ui/app-text-input';
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -48,6 +48,7 @@ const SERVICES = [
 
 export function StaffOrdersScreen() {
   const router = useRouter();
+  const { orderId: requestedOrderId } = useLocalSearchParams<{ orderId?: string | string[] }>();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<string>('Active');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -98,7 +99,7 @@ export function StaffOrdersScreen() {
   const finalEstimateComplete = selectedServiceOptions.length > 0 && (selectedMeasuredServices.length === 0 || hasValidFinalQuantity);
   const finalEstimate = selectedServiceOptions.reduce((sum, service) => sum + (service.name === 'Ironing' ? service.rate : hasValidFinalQuantity ? finalQuantity * service.rate : 0), pickupDraft ? 10 : 0);
 
-  const openOrder = (order: Order) => {
+  const openOrder = useCallback((order: Order) => {
     setSelectedOrder(order);
     setAddressDraft(order.address ?? '');
     setNotesDraft(order.notes ?? '');
@@ -110,7 +111,14 @@ export function StaffOrdersScreen() {
     setFinalQuantityDraft(existingFinalQuantity ? String(existingFinalQuantity) : '');
     setPickupDraft(order.pickup_delivery);
     setExpandedSection(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    const orderId = Array.isArray(requestedOrderId) ? requestedOrderId[0] : requestedOrderId;
+    if (!orderId) return;
+    const matchingOrder = orders.find((order) => order.id === orderId);
+    if (matchingOrder) openOrder(matchingOrder);
+  }, [openOrder, orders, requestedOrderId]);
 
   const confirmAndSave = () => {
     if (selectedOrder && selectedOrder.status !== statusDraft) {
@@ -424,6 +432,7 @@ const PICKUP_FEE = 10;
 
 export function CustomerCreateOrderScreen() {
   const router = useRouter();
+  const { service: requestedService } = useLocalSearchParams<{ service?: string | string[] }>();
   const [selectedServices, setSelectedServices] = useState<string[]>(['1']);
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
@@ -436,6 +445,13 @@ export function CustomerCreateOrderScreen() {
   const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [serviceListOpen, setServiceListOpen] = useState(false);
   const chosenServices = CUSTOMER_SERVICES.filter((item) => selectedServices.includes(item.id));
+
+  useEffect(() => {
+    const serviceName = Array.isArray(requestedService) ? requestedService[0] : requestedService;
+    const service = CUSTOMER_SERVICES.find((item) => item.name === serviceName);
+    if (service) setSelectedServices([service.id]);
+  }, [requestedService]);
+
   const serviceEstimate = useMemo(() => chosenServices.reduce((sum, item) => sum + item.unitPrice, 0), [chosenServices]);
   const total = serviceEstimate + (pickup ? PICKUP_FEE : 0);
 
