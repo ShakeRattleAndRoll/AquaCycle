@@ -24,7 +24,7 @@ type HeaderNotification = {
   title: string;
   message: string;
   created_at: string;
-  is_read: boolean;
+  read_at: string | null;
 };
 
 const TYPE_PRESENTATION: Record<string, { icon: string; iconColor: string; bgColor: string }> = {
@@ -69,14 +69,14 @@ export default function CustomHeader() {
 
       const [recentResult, unreadResult] = await Promise.all([
         client.from('notifications')
-          .select('id, order_id, notification_type, title, message, created_at, is_read')
+          .select('id, order_id, notification_type, title, message, created_at, read_at')
           .eq('recipient_id', user.id)
           .order('created_at', { ascending: false })
           .limit(4),
         client.from('notifications')
           .select('id', { count: 'exact', head: true })
           .eq('recipient_id', user.id)
-          .eq('is_read', false),
+          .is('read_at', null),
       ]);
       if (recentResult.error) throw recentResult.error;
       if (unreadResult.error) throw unreadResult.error;
@@ -99,18 +99,24 @@ export default function CustomHeader() {
   };
 
   const openNotification = async (item: HeaderNotification) => {
-    if (!item.is_read) {
-      setNotifications((current) => current.map((notification) => notification.id === item.id ? { ...notification, is_read: true } : notification));
+    if (!item.read_at) {
+      const readAt = new Date().toISOString();
+      setNotifications((current) => current.map((notification) => notification.id === item.id ? { ...notification, read_at: readAt } : notification));
       setUnreadCount((current) => Math.max(0, current - 1));
       try {
-        const { error } = await requireSupabase().from('notifications').update({ is_read: true }).eq('id', item.id);
+        const { data: { user }, error: userError } = await requireSupabase().auth.getUser();
+        if (userError) throw userError;
+        if (!user) throw new Error('Sign in to update notifications.');
+        const { error } = await requireSupabase().from('notifications').update({ read_at: readAt }).eq('id', item.id).eq('recipient_id', user.id).is('read_at', null);
         if (error) throw error;
       } catch (error) {
         setNotificationsError(error instanceof Error ? error.message : 'Could not mark this notification as read.');
       }
     }
     setShowNotifications(false);
-    router.push(isStaffRoute ? '/orders' : '/(customer-tabs)/orderDetails');
+    router.push(isStaffRoute
+      ? { pathname: '/orders', params: { orderId: item.order_id } }
+      : { pathname: '/(customer-tabs)/orderDetails', params: { orderId: item.order_id } });
   };
 
   return (
@@ -167,8 +173,8 @@ export default function CustomHeader() {
                           </View>
                           <View style={styles.notifTextContainer}>
                             <View style={styles.itemTitleRow}>
-                              <AppText style={[styles.itemTitle, !item.is_read && styles.unreadItemTitle]} numberOfLines={1}>{item.title}</AppText>
-                              {!item.is_read ? <View style={styles.itemUnreadDot} /> : null}
+                              <AppText style={[styles.itemTitle, !item.read_at && styles.unreadItemTitle]} numberOfLines={1}>{item.title}</AppText>
+                              {!item.read_at ? <View style={styles.itemUnreadDot} /> : null}
                             </View>
                             <AppText style={styles.itemSubtitle} numberOfLines={2}>{item.message} · {notificationTime(item.created_at)}</AppText>
                           </View>

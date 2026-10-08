@@ -2,8 +2,8 @@ import AppText from '@/components/ui/app-text';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import QRCode from 'react-native-qrcode-svg';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { requireSupabase } from '../../utils/supabase';
 import { theme } from '../../constants/app-theme';
@@ -54,6 +54,7 @@ const orderAmount = (order: Order) => Number(order.final_total ?? (Number(order.
 
 export default function OrdersDetails() {
   const router = useRouter();
+  const { orderId: requestedOrderId } = useLocalSearchParams<{ orderId?: string | string[] }>();
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +83,13 @@ export default function OrdersDetails() {
     return () => setSelectedOrder(null);
   }, [loadOrders]));
 
+  useEffect(() => {
+    const orderId = Array.isArray(requestedOrderId) ? requestedOrderId[0] : requestedOrderId;
+    if (!orderId) return;
+    const matchingOrder = orders.find((order) => order.id === orderId);
+    if (matchingOrder) setSelectedOrder(matchingOrder);
+  }, [orders, requestedOrderId]);
+
   return (
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -94,6 +102,11 @@ export default function OrdersDetails() {
             <Feather name="archive" size={16} color={theme.color.secondary} />
             <AppText style={styles.historyButtonText}>History</AppText>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.statusRefreshInfo}>
+          <Ionicons name="refresh-outline" size={17} color={theme.color.secondary} />
+          <AppText style={styles.statusRefreshText}>Order statuses refresh when you reopen this screen. Live updates are coming soon.</AppText>
         </View>
 
         {loading ? <ActivityIndicator color={theme.color.secondary} style={styles.loader} /> : null}
@@ -183,6 +196,29 @@ export default function OrdersDetails() {
                   <AppText style={styles.totalLabel}>{selectedOrder.final_total !== null ? 'Final total' : 'Estimated total'}</AppText>
                   <AppText style={styles.total}>${orderAmount(selectedOrder).toFixed(2)}</AppText>
                 </View>
+                <View style={styles.receiptPreview}>
+                  <View style={styles.receiptPreviewHeader}>
+                    <View>
+                      <AppText style={styles.receiptPreviewEyebrow}>RECEIPT PREVIEW</AppText>
+                      <AppText style={styles.receiptPreviewTitle}>Order #{selectedOrder.id.slice(0, 8).toUpperCase()}</AppText>
+                    </View>
+                    <Ionicons name="receipt-outline" size={22} color={theme.color.secondary} />
+                  </View>
+                  <View style={styles.receiptPreviewRow}><AppText style={styles.receiptPreviewLabel}>Date</AppText><AppText style={styles.receiptPreviewValue}>{new Date(selectedOrder.created_at).toLocaleDateString()}</AppText></View>
+                  <View style={styles.receiptPreviewRow}><AppText style={styles.receiptPreviewLabel}>Payment</AppText><AppText style={styles.receiptPreviewValue}>{selectedOrder.payment_method === 'gcash' ? 'GCash' : 'Cash'} · {PAYMENT_STATUS_LABELS[selectedOrder.payment_status ?? 'unpaid'] ?? 'Unpaid'}</AppText></View>
+                  <View style={styles.receiptPreviewRow}><AppText style={styles.receiptPreviewLabel}>Amount</AppText><AppText style={styles.receiptPreviewAmount}>${orderAmount(selectedOrder).toFixed(2)}</AppText></View>
+                  <View style={styles.receiptPreviewActions}>
+                    <TouchableOpacity style={styles.receiptPreviewButton} disabled accessibilityRole="button">
+                      <Ionicons name="download-outline" size={16} color="#94a3b8" />
+                      <AppText style={styles.receiptPreviewButtonText}>Download</AppText>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.receiptPreviewButton} disabled accessibilityRole="button">
+                      <Ionicons name="print-outline" size={16} color="#94a3b8" />
+                      <AppText style={styles.receiptPreviewButtonText}>Print</AppText>
+                    </TouchableOpacity>
+                  </View>
+                  <AppText style={styles.receiptPreviewNote}>Receipt export is a preview. Download and print are not active yet.</AppText>
+                </View>
                 {selectedOrder.status === 'ready' ? (
                   <View style={styles.claimPass}>
                     <AppText style={styles.claimTitle}>Ready for pickup</AppText>
@@ -213,6 +249,8 @@ const styles = StyleSheet.create({
   page: { flex: 1, ...theme.color.lightBackground },
   container: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, flexGrow: 1 },
   header: { marginBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statusRefreshInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14, borderRadius: 12, backgroundColor: '#eff6ff' },
+  statusRefreshText: { flex: 1, color: '#475569', fontSize: 11, lineHeight: 16 },
   headerTitle: { flex: 1 },
   historyButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#eaf2ff' },
   historyButtonText: { color: theme.color.secondary, fontSize: 12, fontWeight: '700' },
@@ -251,6 +289,18 @@ const styles = StyleSheet.create({
   infoBlock: { marginTop: 8 },
   modalTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 16, paddingTop: 14 },
   totalLabel: { color: '#334155', fontSize: 14, fontWeight: '700' },
+  receiptPreview: { marginTop: 16, padding: 14, borderWidth: 1, borderColor: '#dbe4f0', borderRadius: 16, backgroundColor: '#f8fafc' },
+  receiptPreviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
+  receiptPreviewEyebrow: { color: '#64748b', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  receiptPreviewTitle: { color: '#0f172a', fontSize: 14, fontWeight: '800', marginTop: 3 },
+  receiptPreviewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#e8edf4' },
+  receiptPreviewLabel: { color: '#64748b', fontSize: 11 },
+  receiptPreviewValue: { color: '#334155', fontSize: 11, fontWeight: '600', textAlign: 'right', flexShrink: 1, marginLeft: 8 },
+  receiptPreviewAmount: { color: theme.color.secondary, fontSize: 13, fontWeight: '800' },
+  receiptPreviewActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  receiptPreviewButton: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 10, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 11, backgroundColor: '#f1f5f9', opacity: 0.75 },
+  receiptPreviewButtonText: { color: '#94a3b8', fontSize: 11, fontWeight: '700' },
+  receiptPreviewNote: { color: '#64748b', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 9 },
   claimPass: { alignItems: 'center', marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: '#f0fdf4' },
   claimTitle: { color: '#166534', fontSize: 16, fontWeight: '800' },
   claimHint: { color: '#475569', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 5 },
