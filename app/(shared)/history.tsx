@@ -3,9 +3,9 @@ import AppTextInput from '@/components/ui/app-text-input';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { requireSupabase } from '../utils/supabase';
-import { theme } from '../constants/app-theme';
+import { ActivityIndicator, Alert, Modal, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { requireSupabase } from '../../utils/supabase';
+import { theme } from '../../constants/app-theme';
 
 type HistoryOrder = {
   id: string;
@@ -23,7 +23,10 @@ type HistoryOrder = {
   notes: string | null;
   created_at: string;
   completed_at: string | null;
-  order_services?: { service_name: string; quantity_unit: string; final_quantity: number | null }[];
+  payment_method?: 'cash' | 'gcash';
+  payment_status?: 'unpaid' | 'pending_verification' | 'paid';
+  payment_reference?: string | null;
+  order_services?: { service_name: string; quantity: number; quantity_unit: string; estimated_total: number; final_quantity: number | null; final_total: number | null }[];
 };
 
 type Filter = 'All' | 'Completed' | 'Cancelled';
@@ -40,6 +43,7 @@ export default function StaffHistoryScreen() {
   const [filter, setFilter] = useState<Filter>('All');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedReceipt, setSelectedReceipt] = useState<HistoryOrder | null>(null);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -52,7 +56,7 @@ export default function StaffHistoryScreen() {
       if (profileError) throw profileError;
       const nextRole = profile.role === 'staff' ? 'staff' : 'customer';
       setRole(nextRole);
-      let query = client.from('orders').select('id,user_id,customer_name,service_name,status,estimated_total,final_total,delivery_fee,pickup_delivery,final_quantity,quantity_unit,address,notes,created_at,completed_at,order_services(service_name,quantity_unit,final_quantity)').in('status', ['completed', 'cancelled']);
+      let query = client.from('orders').select('id,user_id,customer_name,service_name,status,estimated_total,final_total,delivery_fee,pickup_delivery,final_quantity,quantity_unit,address,notes,created_at,completed_at,payment_method,payment_status,payment_reference,order_services(service_name,quantity,quantity_unit,estimated_total,final_quantity,final_total)').in('status', ['completed', 'cancelled']);
       if (nextRole === 'customer') query = query.eq('user_id', user.id);
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
@@ -199,11 +203,102 @@ export default function StaffHistoryScreen() {
                   </AppText>
                   <AppText style={styles.total}>${amount(order).toFixed(2)}</AppText>
                 </View>
+                <TouchableOpacity
+                  style={styles.receiptLink}
+                  onPress={() => setSelectedReceipt(order)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View receipt for order ${order.id.slice(0, 8)}`}
+                >
+                  <AppText style={styles.receiptLinkText}>View Receipt</AppText>
+                  <Feather name="chevron-right" size={16} color={theme.color.secondary} />
+                </TouchableOpacity>
               </View>
             );
           })}
         </ScrollView>
       )}
+
+      <Modal visible={Boolean(selectedReceipt)} transparent animationType="fade" onRequestClose={() => setSelectedReceipt(null)}>
+        <View style={styles.receiptBackdrop}>
+          <View style={styles.receiptModal}>
+            <View style={styles.receiptHeader}>
+              <View>
+                <AppText style={styles.receiptEyebrow}>AQUACYCLE</AppText>
+                <AppText style={styles.receiptTitle}>Order receipt</AppText>
+              </View>
+              <TouchableOpacity style={styles.receiptClose} onPress={() => setSelectedReceipt(null)} accessibilityLabel="Close receipt">
+                <Feather name="x" size={20} color="#334155" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedReceipt ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.receiptContent}>
+                <View style={styles.receiptMetaRow}>
+                  <AppText style={styles.receiptMetaLabel}>Order</AppText>
+                  <AppText style={styles.receiptMetaValue}>#{selectedReceipt.id.slice(0, 8).toUpperCase()}</AppText>
+                </View>
+                <View style={styles.receiptMetaRow}>
+                  <AppText style={styles.receiptMetaLabel}>Date</AppText>
+                  <AppText style={styles.receiptMetaValue}>{new Date(selectedReceipt.completed_at || selectedReceipt.created_at).toLocaleString()}</AppText>
+                </View>
+                {role === 'staff' ? (
+                  <View style={styles.receiptMetaRow}>
+                    <AppText style={styles.receiptMetaLabel}>Customer</AppText>
+                    <AppText style={styles.receiptMetaValue}>{selectedReceipt.customer_name || 'Customer'}</AppText>
+                  </View>
+                ) : null}
+
+                <View style={styles.receiptDivider} />
+                <AppText style={styles.receiptSectionTitle}>Services</AppText>
+                {selectedReceipt.order_services?.length ? selectedReceipt.order_services.map((service) => (
+                  <View key={service.service_name} style={styles.receiptLine}>
+                    <View style={styles.receiptServiceCopy}>
+                      <AppText style={styles.receiptServiceName}>{service.service_name}</AppText>
+                      <AppText style={styles.receiptServiceDetail}>
+                        {service.service_name === 'Ironing' ? 'Fixed price' : `${service.final_quantity ?? service.quantity} ${service.quantity_unit}`}
+                      </AppText>
+                    </View>
+                    <AppText style={styles.receiptLineAmount}>${Number(service.final_total ?? service.estimated_total).toFixed(2)}</AppText>
+                  </View>
+                )) : (
+                  <View style={styles.receiptLine}>
+                    <AppText style={styles.receiptServiceName}>{selectedReceipt.service_name}</AppText>
+                    <AppText style={styles.receiptLineAmount}>${Number(selectedReceipt.final_total ?? selectedReceipt.estimated_total).toFixed(2)}</AppText>
+                  </View>
+                )}
+
+                {selectedReceipt.pickup_delivery ? (
+                  <View style={styles.receiptLine}>
+                    <AppText style={styles.receiptServiceName}>Pickup & delivery</AppText>
+                    <AppText style={styles.receiptLineAmount}>${Number(selectedReceipt.delivery_fee).toFixed(2)}</AppText>
+                  </View>
+                ) : null}
+                <AppText style={styles.receiptAddress}>{selectedReceipt.pickup_delivery ? 'Delivery address' : 'Service type'}: {selectedReceipt.pickup_delivery ? selectedReceipt.address : 'Store drop-off'}</AppText>
+
+                <View style={styles.receiptDivider} />
+                <View style={styles.receiptMetaRow}>
+                  <AppText style={styles.receiptMetaLabel}>Status</AppText>
+                  <AppText style={[styles.receiptMetaValue, selectedReceipt.status === 'completed' ? styles.receiptPaid : styles.receiptCancelled]}>
+                    {selectedReceipt.status === 'completed' ? 'Completed' : 'Cancelled'}
+                  </AppText>
+                </View>
+                <View style={styles.receiptMetaRow}>
+                  <AppText style={styles.receiptMetaLabel}>Payment</AppText>
+                  <AppText style={styles.receiptMetaValue}>{selectedReceipt.payment_method === 'gcash' ? 'GCash' : 'Cash'} · {selectedReceipt.payment_status === 'paid' || selectedReceipt.status === 'completed' ? 'Paid' : 'Unpaid'}</AppText>
+                </View>
+                {selectedReceipt.payment_reference ? <AppText style={styles.receiptAddress}>GCash reference: {selectedReceipt.payment_reference}</AppText> : null}
+
+                <View style={styles.receiptTotalRow}>
+                  <AppText style={styles.receiptTotalLabel}>{selectedReceipt.status === 'completed' ? 'Total paid' : 'Order total'}</AppText>
+                  <AppText style={styles.receiptTotal}>${amount(selectedReceipt).toFixed(2)}</AppText>
+                </View>
+                <AppText style={styles.receiptFooter}>{selectedReceipt.status === 'completed' ? 'Thank you for choosing AquaCycle.' : 'This order was cancelled.'}</AppText>
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -421,5 +516,158 @@ const styles = StyleSheet.create({
     color: theme.color.secondary,
     fontSize: 15,
     fontWeight: '800'
+  },
+  receiptLink: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 3,
+    paddingTop: 12,
+  },
+  receiptLinkText: {
+    color: theme.color.secondary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  receiptBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 18,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+  },
+  receiptModal: {
+    width: '100%',
+    maxWidth: 460,
+    maxHeight: '88%',
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    padding: 20,
+  },
+  receiptHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    paddingBottom: 14,
+  },
+  receiptEyebrow: {
+    color: theme.color.secondary,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+  },
+  receiptTitle: {
+    color: '#0f172a',
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  receiptClose: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receiptContent: {
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  receiptMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 16,
+    paddingVertical: 5,
+  },
+  receiptMetaLabel: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  receiptMetaValue: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  receiptDivider: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 13,
+  },
+  receiptSectionTitle: {
+    color: '#334155',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 5,
+  },
+  receiptLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  receiptServiceCopy: {
+    flex: 1,
+  },
+  receiptServiceName: {
+    color: '#0f172a',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  receiptServiceDetail: {
+    color: '#64748b',
+    fontSize: 11,
+    marginTop: 3,
+  },
+  receiptLineAmount: {
+    color: '#0f172a',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  receiptAddress: {
+    color: '#64748b',
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 9,
+  },
+  receiptPaid: {
+    color: '#15803d',
+  },
+  receiptCancelled: {
+    color: '#b91c1c',
+  },
+  receiptTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#cbd5e1',
+    marginTop: 16,
+    paddingTop: 14,
+  },
+  receiptTotalLabel: {
+    color: '#334155',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  receiptTotal: {
+    color: theme.color.secondary,
+    fontSize: 19,
+    fontWeight: '900',
+  },
+  receiptFooter: {
+    color: '#64748b',
+    fontSize: 11,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 16,
   }
 });

@@ -26,18 +26,20 @@ begin
       check (payment_status in ('unpaid', 'pending_verification', 'paid'));
   end if;
 
-  if not exists (
+  if exists (
     select 1 from pg_constraint
     where conrelid = 'public.orders'::regclass and conname = 'orders_payment_details_check'
   ) then
-    alter table public.orders add constraint orders_payment_details_check
-      check (
-        (payment_method = 'cash' and payment_reference is null)
-        or (payment_method = 'gcash' and nullif(btrim(payment_reference), '') is not null)
-      );
+    alter table public.orders drop constraint orders_payment_details_check;
   end if;
 end;
 $$;
+
+alter table public.orders add constraint orders_payment_details_check
+  check (
+    (payment_method = 'cash' and payment_reference is null)
+    or (payment_method = 'gcash' and (payment_reference is null or char_length(payment_reference) <= 100))
+  );
 
 -- Only staff may update payment verification fields through the existing staff-only
 -- orders update policy. Customers submit a reference through the RPC below.
@@ -72,8 +74,8 @@ begin
   if v_payment_method = 'cash' and v_payment_reference is not null then
     raise exception 'Cash orders cannot include a GCash reference.';
   end if;
-  if v_payment_method = 'gcash' and (v_payment_reference is null or char_length(v_payment_reference) > 100) then
-    raise exception 'Enter a valid GCash payment reference (up to 100 characters).';
+  if v_payment_method = 'gcash' and char_length(v_payment_reference) > 100 then
+    raise exception 'Keep the GCash payment reference under 100 characters.';
   end if;
 
   v_order_id := public.create_order_with_services(
@@ -87,7 +89,7 @@ begin
   update public.orders
   set payment_method = v_payment_method,
       payment_reference = v_payment_reference,
-      payment_status = case when v_payment_method = 'gcash' then 'pending_verification' else 'unpaid' end
+      payment_status = case when v_payment_method = 'gcash' and v_payment_reference is not null then 'pending_verification' else 'unpaid' end
   where id = v_order_id and user_id = auth.uid();
 
   if not found then
@@ -100,3 +102,26 @@ $$;
 
 revoke all on function public.create_order_with_payment(text, text, text, boolean, text[], text, text) from public, anon;
 grant execute on function public.create_order_with_payment(text, text, text, boolean, text[], text, text) to authenticated;
+
+create or replace function public.prevent_unpaid_order_completion()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.status = 'completed'
+    and old.status is distinct from 'completed'
+    and new.payment_status is distinct from 'paid' then
+    raise exception 'Payment must be marked as paid before completing pickup.'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.prevent_unpaid_order_completion() from public, anon, authenticated;
+drop trigger if exists prevent_unpaid_order_completion on public.orders;
+create trigger prevent_unpaid_order_completion
+  before update of status on public.orders
+  for each row
+  execute function public.prevent_unpaid_order_completion();

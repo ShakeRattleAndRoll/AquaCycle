@@ -37,6 +37,11 @@ const PROFILE_ITEMS = [
     icon: 'water-outline' as const,
   },
   {
+    title: 'Change password',
+    subtitle: 'Update your account password',
+    icon: 'lock-closed-outline' as const,
+  },
+  {
     title: 'Help & support',
     subtitle: 'Get assistance with AquaCycle',
     icon: 'help-circle-outline' as const,
@@ -65,7 +70,7 @@ export default function ProfileScreen() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
 
-  const [service, setService] = useState('Wash & Fold');
+  const [services, setServices] = useState<string[]>(['Wash & Fold']);
   const [folding, setFolding] = useState('Fold clothes');
   const [notes, setNotes] = useState('');
 
@@ -314,9 +319,9 @@ export default function ProfileScreen() {
 
       if (error) throw error;
 
-      setService(
-        data?.laundry_service_preference || 'Wash & Fold',
-      );
+      const savedServices = (data?.laundry_service_preference || 'Wash & Fold')
+        .split(',').map((item: string) => item.trim()).filter(Boolean);
+      setServices(savedServices.length ? savedServices : ['Wash & Fold']);
 
       setFolding(
         data?.folding_preference || 'Fold clothes',
@@ -357,11 +362,13 @@ export default function ProfileScreen() {
       const { error } = await client
         .from('profiles')
         .update({
-          laundry_service_preference: service,
+          laundry_service_preference: services.join(', '),
           folding_preference: folding,
           laundry_special_instructions: notes.trim(),
         })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select('id')
+        .single();
 
       if (error) {
         throw error;
@@ -400,6 +407,11 @@ export default function ProfileScreen() {
 
     if (title === 'Laundry preferences') {
       void openLaundryPreferences();
+      return;
+    }
+
+    if (title === 'Change password') {
+      router.push('/change-password');
       return;
     }
 
@@ -492,7 +504,7 @@ export default function ProfileScreen() {
           </AppText>
 
           <AppText style={styles.itemCount}>
-            4 options
+            5 options
           </AppText>
         </View>
 
@@ -855,31 +867,18 @@ export default function ProfileScreen() {
                   Preferred service
                 </AppText>
 
-                {[
-                  'Wash & Fold',
-                  'Wash Only',
-                  'Dry Only',
-                  'Ironing',
-                ].map((item) => (
+                {['Wash & Fold', 'Ironing', 'Dry Cleaning', 'Self Service'].map((item) => (
                   <TouchableOpacity
                     key={item}
                     style={styles.choice}
-                    onPress={() => setService(item)}
+                    onPress={() => setServices((current) => current.includes(item) ? current.filter((service) => service !== item) : [...current, item])}
                   >
                     <AppText style={styles.choiceText}>
                       {item}
                     </AppText>
 
-                    <View
-                      style={[
-                        styles.radio,
-                        service === item &&
-                          styles.radioSelected,
-                      ]}
-                    >
-                      {service === item && (
-                        <View style={styles.radioDot} />
-                      )}
+                    <View style={[styles.checkbox, services.includes(item) && styles.checkboxSelected]}>
+                      {services.includes(item) && <Ionicons name="checkmark" size={14} color="#ffffff" />}
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -1562,6 +1561,19 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+    backgroundColor: theme.color.secondary,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    borderColor: theme.color.secondary,
     backgroundColor: theme.color.secondary,
   },
 

@@ -6,8 +6,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { requireSupabase } from '../utils/supabase';
-import { theme } from '../constants/app-theme';
+import { requireSupabase } from '../../utils/supabase';
+import { theme } from '../../constants/app-theme';
 
 export default function OrdersRoute() {
   const [role, setRole] = useState<'staff' | 'customer' | null>(null);
@@ -42,7 +42,7 @@ const STATUS_LABELS: Record<string, string> = { received: 'New', washing: 'Washi
 const PAYMENT_STATUS_LABELS: Record<string, string> = { unpaid: 'Unpaid', pending_verification: 'Awaiting verification', paid: 'Paid' };
 const SERVICES = [
   { name: 'Wash & Fold', unit: 'kg', rate: 45 }, { name: 'Ironing', unit: 'kg', rate: 35 },
-  { name: 'Dry Cleaning', unit: 'item', rate: 120 }, { name: 'Wash & Iron', unit: 'kg', rate: 65 },
+  { name: 'Dry Cleaning', unit: 'kg', rate: 120 }, { name: 'Wash & Iron', unit: 'kg', rate: 65 },
   { name: 'Self Service', unit: 'kg', rate: 65 },
 ] as const;
 
@@ -95,6 +95,7 @@ export function StaffOrdersScreen() {
   const finalQuantity = Number(finalQuantityDraft);
   const selectedMeasuredServices = selectedServiceOptions.filter((service) => service.name !== 'Ironing');
   const hasValidFinalQuantity = Number.isFinite(finalQuantity) && finalQuantity > 0;
+  const finalQuantityMissing = selectedMeasuredServices.length > 0 && !hasValidFinalQuantity;
   const finalEstimateComplete = selectedServiceOptions.length > 0 && (selectedMeasuredServices.length === 0 || hasValidFinalQuantity);
   const finalEstimate = selectedServiceOptions.reduce((sum, service) => sum + (service.name === 'Ironing' ? service.rate : hasValidFinalQuantity ? finalQuantity * service.rate : 0), pickupDraft ? 10 : 0);
 
@@ -125,6 +126,10 @@ export function StaffOrdersScreen() {
 
   const saveOrderChanges = async () => {
     if (!selectedOrder) return;
+    if (statusDraft === 'completed' && selectedOrder.payment_status !== 'paid') {
+      Alert.alert('Payment required', 'Mark this order as paid before completing pickup.');
+      return;
+    }
     if (!addressDraft.trim()) { Alert.alert('Address required', 'Enter the order address before saving.'); return; }
     const selectedServices = SERVICES.filter((item) => serviceDrafts.includes(item.name));
     if (!selectedServices.length) { Alert.alert('Choose a service', 'An order must include at least one service.'); return; }
@@ -200,7 +205,9 @@ export function StaffOrdersScreen() {
     if (!selectedOrder || selectedOrder.payment_status === 'paid') return;
     const method = selectedOrder.payment_method ?? 'cash';
     const message = method === 'gcash'
-      ? `Confirm that you checked GCash and verified reference ${selectedOrder.payment_reference ?? ''}?`
+      ? selectedOrder.payment_reference
+        ? `Confirm that you checked the shop's GCash account and verified reference ${selectedOrder.payment_reference}?`
+        : 'Confirm that you checked the shop GCash account and received this order’s payment?'
       : 'Confirm that you received the cash payment for this order?';
     Alert.alert('Verify payment', message, [
       { text: 'Cancel', style: 'cancel' },
@@ -320,15 +327,16 @@ export function StaffOrdersScreen() {
                {selectedOrder.payment_reference ? <AppText style={staffStyles.paymentReference}>Reference: {selectedOrder.payment_reference}</AppText> : null}
                {selectedOrder.payment_status !== 'paid' ? <>
                  <AppText style={staffStyles.paymentVerifyHint}>
-                   {(selectedOrder.payment_method ?? 'cash') === 'gcash' ? 'Check the reference against the shop’s GCash transaction before confirming.' : 'Confirm after receiving the cash payment.'}
+                   {(selectedOrder.payment_method ?? 'cash') === 'gcash' ? (selectedOrder.payment_reference ? 'Verify the GCash reference against the shop transaction. The pickup QR will not complete until payment is marked paid.' : 'Collect and verify the GCash payment in the shop account, then mark it paid. The pickup QR will not complete until then.') : 'Collect the cash first, then mark it paid. The pickup QR will not complete until then.'}
                  </AppText>
                  <TouchableOpacity style={staffStyles.verifyPaymentButton} onPress={confirmPayment} disabled={verifyingPayment || saving}>
                    {verifyingPayment ? <ActivityIndicator color="#ffffff" /> : <AppText style={staffStyles.verifyPaymentText}>Mark payment as paid</AppText>}
                  </TouchableOpacity>
                </> : null}
               {selectedMeasuredServices.length > 0 ? <>
-                <AppText style={staffStyles.modalLabel}>Final {selectedMeasuredServices.every((service) => service.unit === 'kg') ? 'weight (kg)' : selectedMeasuredServices.every((service) => service.unit === 'item') ? 'item count' : 'amount (kg / items)'}</AppText>
+                <AppText style={staffStyles.modalLabel}>Final weight (kg)</AppText>
                 <AppTextInput style={staffStyles.modalInput} value={finalQuantityDraft} onChangeText={setFinalQuantityDraft} keyboardType="decimal-pad" placeholder="Enter final amount for the order" />
+                {finalQuantityMissing ? <View style={staffStyles.finalAmountWarning}><Feather name="alert-circle" size={16} color="#b45309" /><AppText style={staffStyles.finalAmountWarningText}>Final weight or item count has not been entered. The order can be saved, but its final total will remain pending.</AppText></View> : null}
                 <AppText style={staffStyles.helpText}>Ironing has a fixed $35 charge and is not affected by this amount.</AppText>
               </> : <AppText style={staffStyles.helpText}>Ironing is a fixed $35 service; no weight is needed.</AppText>}
               <View style={staffStyles.modalPriceRow}><AppText style={staffStyles.modalPriceLabel}>Services + delivery</AppText><AppText style={staffStyles.modalPrice}>${(serviceEstimate + (pickupDraft ? 10 : 0)).toFixed(2)}</AppText></View>
@@ -401,6 +409,8 @@ const staffStyles = StyleSheet.create({
   verifyPaymentButton: { minHeight: 46, marginTop: 12, borderRadius: 12, backgroundColor: '#15803d', alignItems: 'center', justifyContent: 'center' },
   verifyPaymentText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
   modalMultiline: { minHeight: 76, textAlignVertical: 'top' },
+  finalAmountWarning: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a', borderRadius: 10, padding: 10, marginTop: 8 },
+  finalAmountWarningText: { flex: 1, color: '#92400e', fontSize: 12, lineHeight: 17 },
   modalPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 },
   modalPriceLabel: { color: '#475569', fontSize: 12, fontWeight: '600' },
   modalPrice: { color: theme.color.secondary, fontSize: 14, fontWeight: '800' },
@@ -417,7 +427,7 @@ const staffStyles = StyleSheet.create({
 const CUSTOMER_SERVICES = [
   { id: '1', name: 'Wash & Fold', unitPrice: 45, unit: 'kg', icon: 'washing-machine' },
   { id: '2', name: 'Ironing', unitPrice: 35, unit: 'fixed', icon: 'iron' },
-  { id: '3', name: 'Dry Cleaning', unitPrice: 120, unit: 'item', icon: 'tshirt-crew-outline' },
+  { id: '3', name: 'Dry Cleaning', unitPrice: 120, unit: 'kg', icon: 'tshirt-crew-outline' },
   { id: '4', name: 'Self Service', unitPrice: 65, unit: 'kg', icon: 'water-outline' },
 ];
 const PICKUP_FEE = 10;
@@ -447,10 +457,21 @@ export function CustomerCreateOrderScreen() {
         const { data: { user } } = await client.auth.getUser();
         if (!user) return;
         const [{ data: profile }, { data: previousOrder }] = await Promise.all([
-          client.from('profiles').select('address').eq('id', user.id).single(),
+          client.from('profiles').select('address, laundry_service_preference, folding_preference, laundry_special_instructions, preferred_payment_method').eq('id', user.id).single(),
           client.from('orders').select('address').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         ]);
-        if (active) setAddress(previousOrder?.address || profile?.address || '');
+        if (active) {
+          setAddress(previousOrder?.address || profile?.address || '');
+          setPaymentMethod(profile?.preferred_payment_method === 'gcash' ? 'gcash' : 'cash');
+          const savedNames = (profile?.laundry_service_preference || 'Wash & Fold').split(',').map((name: string) => name.trim());
+          const matchingServices = CUSTOMER_SERVICES.filter((service) => savedNames.includes(service.name));
+          setSelectedServices(matchingServices.length ? matchingServices.map((service) => service.id) : ['1']);
+          const preferenceNotes = [
+            profile?.folding_preference ? `Folding preference: ${profile.folding_preference}` : '',
+            profile?.laundry_special_instructions?.trim() || '',
+          ].filter(Boolean).join('\n');
+          setNotes(preferenceNotes);
+        }
       } catch {
         // Keep the address field editable if saved details are unavailable.
       }
@@ -480,10 +501,6 @@ export function CustomerCreateOrderScreen() {
     if (saving) return;
     if (!chosenServices.length || !address.trim()) {
       Alert.alert('Check your order', 'Choose at least one service and enter a pickup or delivery address.');
-      return;
-    }
-    if (paymentMethod === 'gcash' && !paymentReference.trim()) {
-      Alert.alert('GCash reference required', 'Enter the reference number from your GCash payment.');
       return;
     }
     if (paymentReference.trim().length > 100) {
@@ -588,7 +605,7 @@ export function CustomerCreateOrderScreen() {
 
               <View style={customerStyles.serviceInfo}>
                 <AppText style={customerStyles.serviceName}>{service.name}</AppText>
-              <AppText style={customerStyles.servicePrice}>{service.name === 'Ironing' ? `Fixed $${service.unitPrice.toFixed(2)}` : `Estimated $${service.unitPrice.toFixed(2)}`}</AppText>
+              <AppText style={customerStyles.servicePrice}>{service.name === 'Ironing' ? `Fixed $${service.unitPrice.toFixed(2)}` : `Estimated $${service.unitPrice.toFixed(2)}${service.unit === 'kg' ? '/kg' : '/item'}`}</AppText>
               </View>
 
               <View
@@ -729,15 +746,15 @@ export function CustomerCreateOrderScreen() {
           <Ionicons name="phone-portrait-outline" size={22} color={paymentMethod === 'gcash' ? '#ffffff' : theme.color.secondary} />
           <View style={customerStyles.optionTextContainer}>
             <AppText style={[customerStyles.optionTitle, paymentMethod === 'gcash' && customerStyles.optionTitleSelected]}>GCash</AppText>
-            <AppText style={[customerStyles.optionSubtitle, paymentMethod === 'gcash' && customerStyles.optionSubtitleSelected]}>Manual transfer; staff will verify</AppText>
+            <AppText style={[customerStyles.optionSubtitle, paymentMethod === 'gcash' && customerStyles.optionSubtitleSelected]}>Pay at pickup or transfer early; staff will verify</AppText>
           </View>
           {paymentMethod === 'gcash' ? <Ionicons name="checkmark-circle" size={20} color="#ffffff" /> : null}
         </TouchableOpacity>
       </View>
       {paymentMethod === 'gcash' ? (
         <View style={[customerStyles.formCard, customerStyles.paymentReferenceCard]}>
-          <AppText style={customerStyles.label}>GCash payment reference</AppText>
-          <AppText style={customerStyles.fieldHint}>After paying with the store’s GCash details, enter the receipt reference. Staff will verify it manually.</AppText>
+          <AppText style={customerStyles.label}>GCash payment reference (optional)</AppText>
+          <AppText style={customerStyles.fieldHint}>You can pay when your order is ready. If you already transferred payment, enter its reference so staff can verify it.</AppText>
           <AppTextInput
             style={customerStyles.input}
             placeholder="Enter reference number"

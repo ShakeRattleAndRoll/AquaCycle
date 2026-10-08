@@ -3,7 +3,7 @@ import AppTextInput from '@/components/ui/app-text-input';
 import Entypo from '@expo/vector-icons/Entypo';
 import { useRouter } from 'expo-router';
 import { FunctionsHttpError } from '@supabase/supabase-js';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   ActivityIndicator,
@@ -12,8 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { theme } from '../constants/app-theme';
-import { isSupabaseConfigured, requireSupabase } from '../utils/supabase';
+import { theme } from '../../constants/app-theme';
+import { isSupabaseConfigured, requireSupabase } from '../../utils/supabase';
 
 export default function Login() {
   const router = useRouter();
@@ -23,6 +23,13 @@ export default function Login() {
   const [portal, setPortal] = useState<'customer' | 'staff'>('customer');
   const [loading, setLoading] = useState(false);
 
+  const routeAccount = useCallback(async (userId: string) => {
+    const client = requireSupabase();
+    const { data: profile, error: profileError } = await client.from('profiles').select('role').eq('id', userId).single();
+    if (profileError) throw profileError;
+    router.replace(profile.role === 'staff' ? '/(staff-tabs)/staffHome' : '/(customer-tabs)');
+  }, [router]);
+
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let active = true;
@@ -31,15 +38,14 @@ export default function Login() {
         const client = requireSupabase();
         const { data: { session } } = await client.auth.getSession();
         if (!session) return;
-        const { data: profile } = await client.from('profiles').select('role').eq('id', session.user.id).single();
-        if (active && profile) router.replace(profile.role === 'staff' ? '/(staff-tabs)/staffHome' : '/(customer-tabs)');
+        if (active) await routeAccount(session.user.id);
       } catch {
         // Keep the sign-in screen available if the saved session or backend is unavailable.
       }
     };
     void resumeSession();
     return () => { active = false; };
-  }, [router]);
+  }, [routeAccount]);
 
   const signIn = async () => {
     if (!username.trim() || !password) {
@@ -71,11 +77,7 @@ export default function Login() {
       if (sessionError) throw sessionError;
       if (!authData.user) throw new Error('Could not load your account.');
 
-      const { data: profile, error: profileError } = await client
-        .from('profiles')
-        .select('role')
-        .eq('id', authData.user.id)
-        .single();
+      const { data: profile, error: profileError } = await client.from('profiles').select('role').eq('id', authData.user.id).single();
       if (profileError) throw profileError;
 
       if (profile.role !== portal) {
@@ -87,7 +89,7 @@ export default function Login() {
         return;
       }
 
-      router.replace(portal === 'staff' ? '/(staff-tabs)/staffHome' : '/(customer-tabs)');
+      await routeAccount(authData.user.id);
     } catch (error) {
       Alert.alert('Unable to sign in', error instanceof Error ? error.message : 'Please try again.');
     } finally {

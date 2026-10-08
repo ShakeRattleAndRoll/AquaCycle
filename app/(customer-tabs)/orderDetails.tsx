@@ -39,6 +39,14 @@ const STATUS_LABELS: Record<string, string> = {
   received: 'Order received', washing: 'Washing', drying: 'Drying',
   ready: 'Ready for pickup', completed: 'Completed', cancelled: 'Cancelled',
 };
+const STATUS_COLORS: Record<string, { background: string; foreground: string }> = {
+  received: { background: '#eaf2ff', foreground: '#2563eb' },
+  washing: { background: '#f3e8ff', foreground: '#7e22ce' },
+  drying: { background: '#fff7ed', foreground: '#c2410c' },
+  ready: { background: '#fef3c7', foreground: '#b45309' },
+  completed: { background: '#dcfce7', foreground: '#15803d' },
+  cancelled: { background: '#fee2e2', foreground: '#b91c1c' },
+};
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   unpaid: 'Unpaid', pending_verification: 'Awaiting staff verification', paid: 'Paid',
 };
@@ -57,7 +65,7 @@ export default function OrdersDetails() {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('Sign in to view your orders.');
-      const query = client.from('orders').select('*, order_services(*)').eq('user_id', user.id).order('created_at', { ascending: false });
+      const query = client.from('orders').select('*, order_services(*)').eq('user_id', user.id).neq('status', 'completed').order('created_at', { ascending: false });
       const { data, error } = await query;
       if (error) throw error;
       const loadedOrders = (data ?? []) as Order[];
@@ -103,9 +111,9 @@ export default function OrdersDetails() {
         {orders.map((order) => (
           <View key={order.id} style={styles.card}>
             <View style={styles.row}>
-              <View style={styles.badge}>
-                <View style={styles.dot} />
-                <AppText style={styles.badgeText}>{STATUS_LABELS[order.status] ?? order.status}</AppText>
+              <View style={[styles.badge, { backgroundColor: STATUS_COLORS[order.status]?.background ?? '#f1f5f9' }]}>
+                <View style={[styles.dot, { backgroundColor: STATUS_COLORS[order.status]?.foreground ?? '#64748b' }]} />
+                <AppText style={[styles.badgeText, { color: STATUS_COLORS[order.status]?.foreground ?? '#64748b' }]}>{STATUS_LABELS[order.status] ?? order.status}</AppText>
               </View>
               <AppText style={styles.orderId}>#{order.id.slice(0, 8).toUpperCase()}</AppText>
             </View>
@@ -135,7 +143,7 @@ export default function OrdersDetails() {
             {selectedOrder ? (
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
                 <View style={styles.modalStatus}>
-                  <View style={styles.badge}><View style={styles.dot} /><AppText style={styles.badgeText}>{STATUS_LABELS[selectedOrder.status] ?? selectedOrder.status}</AppText></View>
+                  <View style={[styles.badge, { backgroundColor: STATUS_COLORS[selectedOrder.status]?.background ?? '#f1f5f9' }]}><View style={[styles.dot, { backgroundColor: STATUS_COLORS[selectedOrder.status]?.foreground ?? '#64748b' }]} /><AppText style={[styles.badgeText, { color: STATUS_COLORS[selectedOrder.status]?.foreground ?? '#64748b' }]}>{STATUS_LABELS[selectedOrder.status] ?? selectedOrder.status}</AppText></View>
                   <AppText style={styles.detail}>{new Date(selectedOrder.created_at).toLocaleString()}</AppText>
                 </View>
                 <AppText style={styles.sectionTitle}>Selected services</AppText>
@@ -178,7 +186,17 @@ export default function OrdersDetails() {
                 {selectedOrder.status === 'ready' ? (
                   <View style={styles.claimPass}>
                     <AppText style={styles.claimTitle}>Ready for pickup</AppText>
-                    <AppText style={styles.claimHint}>Show this order QR code to staff when you collect it.</AppText>
+                    {selectedOrder.payment_status === 'paid' ? (
+                      <AppText style={styles.claimHint}>Payment confirmed. Show this order QR code to staff to complete pickup.</AppText>
+                    ) : (
+                      <AppText style={styles.claimPaymentWarning}>
+                        {selectedOrder.payment_method === 'gcash'
+                          ? selectedOrder.payment_status === 'pending_verification'
+                            ? 'GCash payment is awaiting verification. Staff must verify it before this QR can complete pickup.'
+                            : 'GCash payment is still due. Pay at pickup and have staff mark it paid before this QR can complete pickup.'
+                          : 'Cash payment is still due. Pay staff and have them mark it paid before this QR can complete pickup.'}
+                      </AppText>
+                    )}
                     <View style={styles.qrCard}><QRCode value={'AQUACYCLE_ORDER:' + selectedOrder.id} size={180} backgroundColor="#ffffff" color="#0f172a" /></View>
                   </View>
                 ) : <AppText style={styles.claimUnavailable}>The claim QR code will appear here when the order is ready.</AppText>}
@@ -236,6 +254,7 @@ const styles = StyleSheet.create({
   claimPass: { alignItems: 'center', marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: '#f0fdf4' },
   claimTitle: { color: '#166534', fontSize: 16, fontWeight: '800' },
   claimHint: { color: '#475569', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 5 },
+  claimPaymentWarning: { color: '#9a3412', backgroundColor: '#ffedd5', borderRadius: 10, padding: 10, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 8 },
   qrCard: { backgroundColor: '#ffffff', padding: 12, borderRadius: 14, marginTop: 14 },
   claimUnavailable: { color: '#64748b', fontSize: 12, lineHeight: 18, marginTop: 16, textAlign: 'center' },
 });

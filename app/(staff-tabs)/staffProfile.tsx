@@ -203,6 +203,20 @@ export default function StaffProfileScreen() {
         </View>
 
         <TouchableOpacity
+          style={styles.passwordButton}
+          activeOpacity={0.8}
+          onPress={() => router.push('/change-password')}
+          accessibilityRole="button"
+        >
+          <Feather name="lock" size={18} color={theme.color.secondary} />
+          <View style={styles.passwordButtonMeta}>
+            <Text style={styles.passwordButtonTitle}>Change password</Text>
+            <Text style={styles.passwordButtonSubtitle}>Verify your current password and set a new one.</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="#94a3b8" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.signOutButton}
           activeOpacity={0.8}
           onPress={confirmSignOut}
@@ -525,6 +539,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
   },
+  passwordButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e6edf7',
+    padding: 15,
+    marginBottom: 14,
+  },
+  passwordButtonMeta: { flex: 1 },
+  passwordButtonTitle: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
+  passwordButtonSubtitle: { color: '#64748b', fontSize: 12, lineHeight: 17, marginTop: 3 },
   signOutText: {
     color: '#dc2626',
     fontSize: 15,

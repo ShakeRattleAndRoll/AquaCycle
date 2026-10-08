@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import AppText from '@/components/ui/app-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { theme } from '../constants/app-theme';
-import { requireSupabase } from '../utils/supabase';
+import { theme } from '../../constants/app-theme';
+import { requireSupabase } from '../../utils/supabase';
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();

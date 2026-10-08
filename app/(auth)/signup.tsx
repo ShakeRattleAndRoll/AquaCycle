@@ -6,15 +6,18 @@ import { FunctionsHttpError, type Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { requireSupabase } from '../utils/supabase';
-import { theme } from '../constants/app-theme';
+import { requireSupabase } from '../../utils/supabase';
+import { theme } from '../../constants/app-theme';
+
+type SignupField = 'fullName' | 'username' | 'email' | 'phone' | 'address' | 'password' | 'confirmPassword' | 'inviteCode';
+type UsernameCheck = 'idle' | 'checking' | 'available' | 'taken' | 'failed';
 
 export default function SignUp() {
   const router = useRouter();
@@ -26,61 +29,74 @@ export default function SignUp() {
   const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<SignupField, string>>>({});
+  const [formError, setFormError] = useState('');
+  const [usernameCheck, setUsernameCheck] = useState<UsernameCheck>('idle');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [accountType, setAccountType] = useState<'customer' | 'staff'>('customer');
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const clearFieldError = (field: SignupField) => {
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    setFormError('');
+  };
+
+  const checkUsername = async (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,24}$/.test(normalized)) {
+      setUsernameCheck('idle');
+      return null;
+    }
+    setUsernameCheck('checking');
+    try {
+      const { data, error } = await requireSupabase().rpc('is_username_available', { p_username: normalized });
+      if (error) throw error;
+      const available = data === true;
+      setUsernameCheck(available ? 'available' : 'taken');
+      return available;
+    } catch {
+      setUsernameCheck('failed');
+      return null;
+    }
+  };
+
   const createAccount = async () => {
     const normalizedUsername = username.trim().toLowerCase();
     const normalizedEmail = email.trim().toLowerCase();
-
-    if (password && confirmPassword && password !== confirmPassword) {
-      setPasswordError(true);
-      return;
-    }
-
-    setPasswordError(false);
-
-    if (
-      !fullName.trim() ||
-      !normalizedUsername ||
-      !phone.trim() ||
-      !normalizedEmail ||
-      !address.trim() ||
-      !password ||
-      !confirmPassword
-    ) {
-      Alert.alert('Missing information', 'Complete every field to create your account.');
-      return;
-    }
-
-    if (!/^[a-z0-9_]{3,24}$/.test(normalizedUsername)) {
-      Alert.alert('Invalid username', 'Use 3 to 24 lowercase letters, numbers, or underscores.');
-      return;
-    }
-
-    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
-      Alert.alert('Invalid email', 'Enter a valid email address.');
-      return;
-    }
-
-    if (password.length < 8) {
-      Alert.alert('Password too short', 'Use at least 8 characters.');
-      return;
-    }
-
-    if (accountType === 'staff' && !inviteCode.trim()) {
-      Alert.alert('Staff code required', 'Enter the private staff testing code to continue.');
-      return;
-    }
+    const errors: Partial<Record<SignupField, string>> = {};
+    if (!fullName.trim()) errors.fullName = 'Enter your name.';
+    if (!normalizedUsername) errors.username = 'Choose a username.';
+    else if (!/^[a-z0-9_]{3,24}$/.test(normalizedUsername)) errors.username = 'Use 3–24 lowercase letters, numbers, or underscores.';
+    if (!normalizedEmail) errors.email = 'Enter your email address.';
+    else if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) errors.email = 'Enter a valid email address.';
+    if (!phone.trim()) errors.phone = 'Enter your phone number.';
+    if (!address.trim()) errors.address = 'Enter your address.';
+    if (!password) errors.password = 'Create a password.';
+    else if (password.length < 8) errors.password = 'Use at least 8 characters.';
+    if (!confirmPassword) errors.confirmPassword = 'Confirm your password.';
+    else if (password !== confirmPassword) errors.confirmPassword = 'Passwords do not match.';
+    if (accountType === 'staff' && !inviteCode.trim()) errors.inviteCode = 'Enter the staff testing code.';
+    setFieldErrors(errors);
+    setFormError('');
+    if (Object.keys(errors).length) return;
 
     setLoading(true);
 
     try {
       const client = requireSupabase();
+      const usernameAvailable = await checkUsername(normalizedUsername);
+      if (usernameAvailable === false) {
+        setFieldErrors((current) => ({ ...current, username: 'This username is already taken. Try another one.' }));
+        setLoading(false);
+        return;
+      }
+      if (usernameAvailable === null) {
+        setFieldErrors((current) => ({ ...current, username: 'Username availability check is unavailable. Check your connection or run supabase/signup-validation.sql in Supabase.' }));
+        setLoading(false);
+        return;
+      }
       const accountDetails = {
         email: normalizedEmail,
         password,
@@ -107,16 +123,13 @@ export default function SignUp() {
         if (error) throw new Error('Could not reach the staff signup service. Check your connection and try again.');
 
         const session = data?.session as Session | undefined;
-
         if (!session?.access_token || !session.refresh_token) {
-          throw new Error('Staff signup service returned an invalid session.');
+          throw new Error('Staff account was created, but sign-in did not complete. Please sign in.');
         }
-
         const { error: sessionError } = await client.auth.setSession({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
         });
-
         if (sessionError) throw sessionError;
         router.replace('/(staff-tabs)/staffHome');
         return;
@@ -144,7 +157,27 @@ export default function SignUp() {
         router.replace('/(customer-tabs)');
       }
     } catch (error) {
-      Alert.alert('Unable to create account', error instanceof Error ? error.message : 'Please try again.');
+      const message = error instanceof Error ? error.message : 'Please try again.';
+      const normalizedMessage = message.toLowerCase();
+      if ((normalizedMessage.includes('email') && (normalizedMessage.includes('exist') || normalizedMessage.includes('registered') || normalizedMessage.includes('already') || normalizedMessage.includes('invalid'))) || normalizedMessage.includes('user already registered')) {
+        setFieldErrors((current) => ({ ...current, email: normalizedMessage.includes('invalid') ? 'Enter a valid email address.' : 'This email is already registered. Try signing in instead.' }));
+      } else if (normalizedMessage.includes('username') || normalizedMessage.includes('duplicate key') || normalizedMessage.includes('unique constraint')) {
+        setFieldErrors((current) => ({ ...current, username: 'This username is already taken. Try another one.' }));
+        setUsernameCheck('taken');
+      } else if (normalizedMessage.includes('database error saving new user')) {
+        const usernameAvailable = await checkUsername(normalizedUsername);
+        if (usernameAvailable === false) {
+          setFieldErrors((current) => ({ ...current, username: 'This username is already taken. Try another one.' }));
+        } else {
+          setFormError('Supabase could not save this account. Check the username and email, then try again.');
+        }
+      } else if (normalizedMessage.includes('password')) {
+        setFieldErrors((current) => ({ ...current, password: message }));
+      } else if (normalizedMessage.includes('invite') || normalizedMessage.includes('staff code')) {
+        setFieldErrors((current) => ({ ...current, inviteCode: message }));
+      } else {
+        setFormError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -194,76 +227,87 @@ export default function SignUp() {
               <AppText style={styles.label}>Staff testing code</AppText>
               <AppTextInput
                 placeholder="Enter invite code"
-                style={styles.input}
+                style={[styles.input, fieldErrors.inviteCode && styles.inputError]}
                 value={inviteCode}
-                onChangeText={setInviteCode}
+                onChangeText={(value) => { setInviteCode(value); clearFieldError('inviteCode'); }}
                 autoCapitalize="none"
                 autoCorrect={false}
                 secureTextEntry
               />
+              <InlineError message={fieldErrors.inviteCode} />
             </>
           ) : null}
 
           <AppText style={styles.label}>Name</AppText>
           <AppTextInput
             placeholder="Juan Dela Cruz"
-            style={styles.input}
+            style={[styles.input, fieldErrors.fullName && styles.inputError]}
             value={fullName}
-            onChangeText={setFullName}
+            onChangeText={(value) => { setFullName(value); clearFieldError('fullName'); }}
             autoComplete="name"
             autoCapitalize="words"
           />
+          <InlineError message={fieldErrors.fullName} />
 
           <AppText style={styles.label}>Username</AppText>
           <AppTextInput
             placeholder="juan_dela_cruz"
-            style={styles.input}
+            style={[styles.input, fieldErrors.username && styles.inputError]}
             value={username}
-            onChangeText={setUsername}
+            onChangeText={(value) => { setUsername(value); clearFieldError('username'); setUsernameCheck('idle'); }}
+            onBlur={() => { void checkUsername(username); }}
             autoComplete="username-new"
             autoCapitalize="none"
             autoCorrect={false}
             maxLength={24}
           />
           <AppText style={styles.hint}>Unique username, 3 to 24 letters, numbers, or underscores</AppText>
+          <InlineError message={fieldErrors.username} />
+          {usernameCheck === 'checking' ? <AppText style={styles.hint}>Checking username…</AppText> : null}
+          {usernameCheck === 'available' ? <AppText style={styles.successText}>Username is available.</AppText> : null}
+          {usernameCheck === 'taken' && !fieldErrors.username ? <AppText style={styles.errorText}>This username is already taken. Try another one.</AppText> : null}
 
           <AppText style={styles.label}>Email</AppText>
+          <AppText style={styles.hint}>We will email you a code to verify this address.</AppText>
           <AppTextInput
             placeholder="you@example.com"
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
-            style={styles.input}
+            style={[styles.input, fieldErrors.email && styles.inputError]}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(value) => { setEmail(value); clearFieldError('email'); }}
           />
+          <InlineError message={fieldErrors.email} />
 
           <AppText style={styles.label}>Phone Number</AppText>
           <AppTextInput
             placeholder="09XXXXXXXXX"
-            style={styles.input}
+            style={[styles.input, fieldErrors.phone && styles.inputError]}
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(value) => { setPhone(value); clearFieldError('phone'); }}
             keyboardType="phone-pad"
             autoComplete="tel"
           />
+          <InlineError message={fieldErrors.phone} />
 
           <AppText style={styles.label}>Address</AppText>
           <AppTextInput
             placeholder="Enter your address"
-            style={styles.input}
+            style={[styles.input, fieldErrors.address && styles.inputError]}
             value={address}
-            onChangeText={setAddress}
+            onChangeText={(value) => { setAddress(value); clearFieldError('address'); }}
             autoComplete="street-address"
           />
+          <InlineError message={fieldErrors.address} />
 
           <AppText style={styles.label}>Password</AppText>
           <View style={styles.passwordContainer}>
             <AppTextInput
               placeholder="Enter your password"
-              style={styles.passwordInput}
+              style={[styles.passwordInput, fieldErrors.password && styles.inputError]}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(value) => { setPassword(value); clearFieldError('password'); }}
               secureTextEntry={!showPassword}
               autoComplete="new-password"
               textContentType="newPassword"
@@ -280,6 +324,7 @@ export default function SignUp() {
               />
             </TouchableOpacity>
           </View>
+          <InlineError message={fieldErrors.password} />
 
           <AppText style={styles.label}>Confirm Password</AppText>
           <View style={styles.passwordContainer}>
@@ -287,12 +332,12 @@ export default function SignUp() {
               placeholder="Re-enter your password"
               style={[
                 styles.passwordInput,
-                passwordError && styles.inputError,
+                fieldErrors.confirmPassword && styles.inputError,
               ]}
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
-                setPasswordError(false);
+                clearFieldError('confirmPassword');
               }}
               secureTextEntry={!showConfirmPassword}
               autoComplete="new-password"
@@ -311,16 +356,14 @@ export default function SignUp() {
             </TouchableOpacity>
           </View>
 
-          {passwordError && (
-            <AppText style={styles.errorText}>
-              Passwords do not match.
-            </AppText>
-          )}
+          <InlineError message={fieldErrors.confirmPassword} />
+          {formError ? <AppText style={styles.formError} accessibilityRole="alert">{formError}</AppText> : null}
 
           <TouchableOpacity
             style={styles.createButton}
             activeOpacity={0.8}
             onPress={createAccount}
+            disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#ffffff" />
@@ -469,6 +512,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
   },
+  successText: {
+    marginTop: 5,
+    color: '#15803d',
+    fontSize: 12,
+  },
+  formError: {
+    marginTop: 12,
+    color: '#b91c1c',
+    fontSize: 13,
+    lineHeight: 18,
+  },
   createButton: {
     ...theme.color.primary,
     alignItems: 'center',
@@ -490,3 +544,8 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
 });
+
+function InlineError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <AppText style={styles.errorText} accessibilityRole="alert">{message}</AppText>;
+}

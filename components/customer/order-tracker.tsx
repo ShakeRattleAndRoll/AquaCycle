@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { requireSupabase } from '../utils/supabase';
+import { requireSupabase } from '../../utils/supabase';
 
 const STATUS_LABELS: Record<string, string> = { received: 'Order received', washing: 'Washing now', drying: 'Drying now', ready: 'Ready for pickup' };
 

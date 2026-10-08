@@ -71,7 +71,7 @@ create table if not exists public.orders (
   updated_at timestamptz not null default now(),
   constraint orders_service_price_check check (
     service_name in ('Wash & Fold', 'Ironing', 'Dry Cleaning', 'Wash & Iron', 'Self Service')
-    and quantity_unit = case when service_name = 'Dry Cleaning' then 'item' else 'kg' end
+    and quantity_unit = 'kg'
     and estimated_total = case
       when service_name = 'Ironing' then 35
       else round(quantity * case service_name

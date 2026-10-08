@@ -13,13 +13,13 @@ import {
 import AppText from '@/components/ui/app-text';
 import AppTextInput from '@/components/ui/app-text-input';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { theme } from '../constants/app-theme';
-import { requireSupabase } from '../utils/supabase';
+import { theme } from '../../constants/app-theme';
+import { requireSupabase } from '../../utils/supabase';
 
 export default function LaundryPreferencesScreen() {
   const router = useRouter();
 
-  const [service, setService] = useState('Wash & Fold');
+  const [services, setServices] = useState<string[]>(['Wash & Fold']);
   const [folding, setFolding] = useState('Fold clothes');
   const [notes, setNotes] = useState('');
 
@@ -52,10 +52,9 @@ export default function LaundryPreferencesScreen() {
 
         if (error) throw error;
 
-        setService(
-          data?.laundry_service_preference ||
-            'Wash & Fold',
-        );
+        const savedServices = (data?.laundry_service_preference || 'Wash & Fold')
+          .split(',').map((item: string) => item.trim()).filter(Boolean);
+        setServices(savedServices.length ? savedServices : ['Wash & Fold']);
 
         setFolding(
           data?.folding_preference ||
@@ -103,11 +102,13 @@ export default function LaundryPreferencesScreen() {
       const { error } = await client
         .from('profiles')
         .update({
-          laundry_service_preference: service,
+          laundry_service_preference: services.join(', '),
           folding_preference: folding,
           laundry_special_instructions: notes.trim(),
         })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select('id')
+        .single();
 
       if (error) throw error;
 
@@ -181,32 +182,19 @@ export default function LaundryPreferencesScreen() {
                 Preferred service
               </AppText>
 
-              {[
-                'Wash & Fold',
-                'Wash Only',
-                'Dry Only',
-                'Ironing',
-              ].map((item) => (
+              {['Wash & Fold', 'Ironing', 'Dry Cleaning', 'Self Service'].map((item) => (
                 <TouchableOpacity
                   key={item}
                   style={styles.choice}
-                  onPress={() => setService(item)}
+                  onPress={() => setServices((current) => current.includes(item) ? current.filter((service) => service !== item) : [...current, item])}
                   activeOpacity={0.7}
                 >
                   <AppText style={styles.choiceText}>
                     {item}
                   </AppText>
 
-                  <View
-                    style={[
-                      styles.radio,
-                      service === item &&
-                        styles.radioSelected,
-                    ]}
-                  >
-                    {service === item && (
-                      <View style={styles.radioDot} />
-                    )}
+                  <View style={[styles.checkbox, services.includes(item) && styles.checkboxSelected]}>
+                    {services.includes(item) && <Feather name="check" size={14} color="#ffffff" />}
                   </View>
                 </TouchableOpacity>
               ))}
@@ -383,6 +371,19 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 5,
+    backgroundColor: theme.color.secondary,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    borderColor: theme.color.secondary,
     backgroundColor: theme.color.secondary,
   },
   divider: {

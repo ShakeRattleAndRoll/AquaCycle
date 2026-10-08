@@ -40,7 +40,7 @@ export default function QRScanScreen() {
       if (profileError) throw profileError;
       if (profile.role !== 'staff') throw new Error('Only staff can scan claim passes.');
 
-      const { data: order, error: orderError } = await client.from('orders').select('id,customer_name,service_name,status').eq('id', orderId).maybeSingle();
+      const { data: order, error: orderError } = await client.from('orders').select('id,customer_name,service_name,status,payment_method,payment_status').eq('id', orderId).maybeSingle();
       if (orderError) throw orderError;
       if (!order) {
         finishScan('Order not found', 'This claim pass does not match an order.');
@@ -48,6 +48,14 @@ export default function QRScanScreen() {
       }
       if (order.status !== 'ready') {
         finishScan('Order is not ready', `${order.customer_name || 'Customer'} · ${order.service_name} · Status: ${order.status}.`);
+        return;
+      }
+      if (order.payment_status !== 'paid') {
+        const paymentMethod = order.payment_method === 'gcash' ? 'GCash' : 'Cash';
+        const paymentMessage = order.payment_method === 'gcash'
+          ? 'GCash payment has not been verified. Check the payment reference and mark the order as paid before scanning the pickup QR again.'
+          : 'Cash payment has not been received. Collect the payment and mark the order as paid before scanning the pickup QR again.';
+        finishScan(`${paymentMethod} payment required`, paymentMessage);
         return;
       }
 

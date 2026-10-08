@@ -1,11 +1,12 @@
+import OrderTracker from '@/components/customer/order-tracker';
+import ServicesList from '@/components/customer/service-list';
 import AppText from '@/components/ui/app-text';
-import OrderTracker from '@/components/order-tracker';
-import ServicesList from '@/components/service-list';
 import { greetings } from '@/logic/greetings';
 import Entypo from '@expo/vector-icons/Entypo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -13,10 +14,30 @@ import {
   View,
 } from 'react-native';
 import { theme } from '../../constants/app-theme';
+import { requireSupabase } from '../../utils/supabase';
 
 export default function HomeScreen() {
   const router = useRouter();
   const greet = greetings();
+  const [username, setUsername] = useState('');
+  const shortUsername = username.length > 8 ? `${username.slice(0, 8)}...` : username;
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    const loadCustomerName = async () => {
+      try {
+        const client = requireSupabase();
+        const { data: { user } } = await client.auth.getUser();
+        if (!user) return;
+        const { data } = await client.from('profiles').select('username').eq('id', user.id).maybeSingle();
+        if (active) setUsername(data?.username?.trim() || user.email?.split('@')[0] || 'there');
+      } catch {
+        // Keep the friendly fallback if the profile cannot be reached.
+      }
+    };
+    void loadCustomerName();
+    return () => { active = false; };
+  }, []));
 
   return (
     <ScrollView
@@ -24,21 +45,23 @@ export default function HomeScreen() {
       style={styles.containerStyle}
     >
       <View style={styles.headerRow}>
-        <View>
+        <View style={styles.greetingBlock}>
           <AppText style={styles.greetSubtitle}>{greet}</AppText>
-          <AppText style={styles.greetTitle}>Welcome User!</AppText>
+          <AppText style={styles.greetTitle} numberOfLines={1} ellipsizeMode="tail">
+            Welcome{shortUsername ? `, ${shortUsername}` : ''}!
+          </AppText>
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => router.replace('/(customer-tabs)/profile')}
-        >
-          <Ionicons
-            name="person-circle-outline"
-            size={50}
-            color="#0f172a"
-          />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => router.replace('/(customer-tabs)/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Profile"
+          >
+            <Ionicons name="person-circle-outline" size={50} color="#0f172a" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.cardContainer}>
@@ -115,8 +138,27 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 18,
+  },
+  greetingBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 8,
+    overflow: 'hidden',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 0,
+  },
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#eaf2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   greetSubtitle: {

@@ -7,8 +7,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { requireSupabase } from '../../utils/supabase';
 import { theme } from '../../constants/app-theme';
+import { requireSupabase } from '../../utils/supabase';
 
 type Order = {
   id: string; user_id: string; customer_name: string; service_name: string; status: string;
@@ -17,7 +17,7 @@ type Order = {
 };
 const SERVICES = [
   { name: 'Wash & Fold', unit: 'kg', rate: 45 }, { name: 'Ironing', unit: 'kg', rate: 35 },
-  { name: 'Dry Cleaning', unit: 'item', rate: 120 }, { name: 'Wash & Iron', unit: 'kg', rate: 65 },
+  { name: 'Dry Cleaning', unit: 'kg', rate: 120 }, { name: 'Wash & Iron', unit: 'kg', rate: 65 },
   { name: 'Self Service', unit: 'kg', rate: 65 },
 ] as const;
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -26,7 +26,6 @@ const amountFor = (order: Order) => Number(order.final_total ?? (Number(order.es
 export default function StaffHomeScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [staffId, setStaffId] = useState('');
   const [staffName, setStaffName] = useState('Staff');
   const [loading, setLoading] = useState(true);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
@@ -36,6 +35,7 @@ export default function StaffHomeScreen() {
   const [notes, setNotes] = useState('');
   const [selectedServices, setSelectedServices] = useState<string[]>(['Wash & Fold']);
   const [pickup, setPickup] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash'>('cash');
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -44,7 +44,6 @@ export default function StaffHomeScreen() {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('Sign in to view the staff dashboard.');
-      setStaffId(user.id);
       const [ordersResult, profileResult] = await Promise.all([
         client.from('orders').select('id,user_id,customer_name,service_name,status,estimated_total,final_total,delivery_fee,created_at,completed_at').order('created_at', { ascending: false }),
         client.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
@@ -63,7 +62,7 @@ export default function StaffHomeScreen() {
   const completedToday = orders.filter((order) => order.status === 'completed' && order.completed_at && dateKey(new Date(order.completed_at)) === today);
   const activeOrders = orders.filter((order) => !['completed', 'cancelled'].includes(order.status));
   const readyOrders = orders.filter((order) => order.status === 'ready');
-  const customerCount = new Set(orders.filter((order) => order.user_id !== staffId).map((order) => order.user_id)).size;
+  const customerCount = new Set(orders.map((order) => order.customer_name.trim().toLocaleLowerCase()).filter(Boolean)).size;
   const todayRevenue = completedToday.reduce((sum, order) => sum + amountFor(order), 0);
   const weekRevenue = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
@@ -87,16 +86,18 @@ export default function StaffHomeScreen() {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('Sign in before creating an order.');
-      const { error } = await client.rpc('create_order_with_services', {
+      const { error } = await client.rpc('create_order_with_payment', {
         p_customer_name: customerName.trim(),
         p_address: address.trim(),
         p_notes: notes.trim() || null,
         p_pickup_delivery: pickup,
         p_service_names: chosenServices.map((service) => service.name),
+        p_payment_method: paymentMethod,
+        p_payment_reference: null,
       });
       if (error) throw error;
       setNewOrderOpen(false);
-      setCustomerName(''); setAddress(''); setNotes(''); setSelectedServices(['Wash & Fold']); setPickup(true);
+      setCustomerName(''); setAddress(''); setNotes(''); setSelectedServices(['Wash & Fold']); setPickup(true); setPaymentMethod('cash');
       await loadDashboard();
       Alert.alert('Order created', 'The new order is now in the orders list.');
     } catch (error) {
@@ -133,7 +134,7 @@ export default function StaffHomeScreen() {
           <Action icon={<Ionicons name="bar-chart-outline" size={22} color={theme.color.secondary} />} label="Sales report" onPress={() => router.push('/(staff-tabs)/report')} />
         </View>
 
-        <View style={styles.sectionHeaderRow}><AppText style={styles.sectionTitle}>Recent orders</AppText><TouchableOpacity onPress={() => router.push('/orders')}><AppText style={[styles.seeAllText, { color: theme.color.secondary }]}>See all</AppText></TouchableOpacity></View>
+        <View style={styles.sectionHeaderRow}><AppText style={styles.sectionTitle}>Recent orders</AppText><TouchableOpacity onPress={() => router.push('/staffOrders')}><AppText style={[styles.seeAllText, { color: theme.color.secondary }]}>See all</AppText></TouchableOpacity></View>
         <View style={[styles.ordersCard, theme.color.lightBox]}>
           {loading ? <ActivityIndicator color={theme.color.secondary} style={{ padding: 22 }} /> : orders.length === 0 ? <AppText style={styles.emptyText}>No orders yet. Create one to get started.</AppText> : orders.slice(0, 4).map((order, index) => <React.Fragment key={order.id}>
             <TouchableOpacity style={styles.orderRow} onPress={() => router.push('/orders')}>
@@ -148,14 +149,15 @@ export default function StaffHomeScreen() {
 
       <Modal visible={newOrderOpen} transparent animationType="slide" onRequestClose={() => setNewOrderOpen(false)}>
         <View style={styles.modalBackdrop}><View style={styles.modalSheet}>
-          <View style={styles.modalHeader}><View><AppText style={styles.revenueLabelDark}>STAFF ENTRY</AppText><AppText style={styles.modalTitle}>New order</AppText></View><TouchableOpacity style={styles.closeButton} onPress={() => setNewOrderOpen(false)}><Feather name="x" size={22} color="#334155" /></TouchableOpacity></View>
+          <View style={styles.modalHeader}><View><AppText style={styles.revenueLabelDark}>WALK-IN · STAFF-MANAGED</AppText><AppText style={styles.modalTitle}>New order</AppText></View><TouchableOpacity style={styles.closeButton} onPress={() => setNewOrderOpen(false)}><Feather name="x" size={22} color="#334155" /></TouchableOpacity></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <AppText style={styles.formLabel}>Customer name</AppText><AppTextInput style={styles.formInput} value={customerName} onChangeText={setCustomerName} placeholder="Enter customer name" />
-            <AppText style={styles.formLabel}>Services</AppText><View style={styles.serviceChoices}>{SERVICES.map((service) => { const selected = selectedServices.includes(service.name); return <TouchableOpacity key={service.name} style={[styles.serviceChoice, selected && styles.serviceChoiceSelected]} onPress={() => setSelectedServices((current) => selected ? current.filter((name) => name !== service.name) : [...current, service.name])}><AppText style={[styles.serviceChoiceText, selected && styles.serviceChoiceTextSelected]}>{service.name} · ₱{service.rate} {service.name === 'Ironing' ? 'fixed' : 'estimate'}</AppText></TouchableOpacity>; })}</View>
+            <AppText style={styles.formLabel}>Services</AppText><View style={styles.serviceChoices}>{SERVICES.map((service) => { const selected = selectedServices.includes(service.name); return <TouchableOpacity key={service.name} style={[styles.serviceChoice, selected && styles.serviceChoiceSelected]} onPress={() => setSelectedServices((current) => selected ? current.filter((name) => name !== service.name) : [...current, service.name])}><AppText style={[styles.serviceChoiceText, selected && styles.serviceChoiceTextSelected]}>{service.name} · ₱{service.rate} {service.name === 'Ironing' ? 'fixed' : `/${service.unit} estimate`}</AppText></TouchableOpacity>; })}</View>
             <AppText style={styles.formLabel}>Pickup / delivery address</AppText><AppTextInput style={styles.formInput} value={address} onChangeText={setAddress} placeholder="Enter customer address" />
             <AppText style={styles.formLabel}>Additional notes</AppText><AppTextInput style={[styles.formInput, styles.notesInput]} value={notes} onChangeText={setNotes} placeholder="Optional instructions" multiline />
             <AppText style={styles.formLabel}>Order method</AppText><View style={styles.serviceChoices}><TouchableOpacity style={[styles.serviceChoice, pickup && styles.serviceChoiceSelected]} onPress={() => setPickup(true)}><AppText style={[styles.serviceChoiceText, pickup && styles.serviceChoiceTextSelected]}>Pickup & delivery · ₱10</AppText></TouchableOpacity><TouchableOpacity style={[styles.serviceChoice, !pickup && styles.serviceChoiceSelected]} onPress={() => setPickup(false)}><AppText style={[styles.serviceChoiceText, !pickup && styles.serviceChoiceTextSelected]}>Store drop-off · Free</AppText></TouchableOpacity></View>
-            <View style={styles.totalRow}><AppText style={styles.formLabel}>Estimated total</AppText><AppText style={styles.formTotal}>₱{estimatedTotal.toFixed(2)}</AppText></View><AppText style={styles.formHint}>Staff will enter the final weight in the order details.</AppText>
+            <AppText style={styles.formLabel}>Payment method</AppText><View style={styles.serviceChoices}><TouchableOpacity style={[styles.serviceChoice, paymentMethod === 'cash' && styles.serviceChoiceSelected]} onPress={() => setPaymentMethod('cash')}><AppText style={[styles.serviceChoiceText, paymentMethod === 'cash' && styles.serviceChoiceTextSelected]}>Cash</AppText></TouchableOpacity><TouchableOpacity style={[styles.serviceChoice, paymentMethod === 'gcash' && styles.serviceChoiceSelected]} onPress={() => setPaymentMethod('gcash')}><AppText style={[styles.serviceChoiceText, paymentMethod === 'gcash' && styles.serviceChoiceTextSelected]}>GCash</AppText></TouchableOpacity></View>
+            <View style={styles.totalRow}><AppText style={styles.formLabel}>Estimated total</AppText><AppText style={styles.formTotal}>₱{estimatedTotal.toFixed(2)}</AppText></View><AppText style={styles.formHint}>This order is managed in the staff workspace. Final weight sets the final price, and pickup stays blocked until staff confirms payment.</AppText>
             <TouchableOpacity style={styles.submitButton} onPress={() => { void submitNewOrder(); }} disabled={saving}>{saving ? <ActivityIndicator color="#fff" /> : <AppText style={styles.submitText}>Create order</AppText>}</TouchableOpacity>
           </ScrollView>
         </View></View>

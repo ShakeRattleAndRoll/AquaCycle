@@ -1,8 +1,8 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import CustomHeader from '@/components/main-header';
+import { HapticTab } from '@/components/navigation/haptic-tab';
+import CustomHeader from '@/components/navigation/main-header';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';

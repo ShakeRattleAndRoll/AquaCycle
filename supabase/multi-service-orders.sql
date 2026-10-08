@@ -20,7 +20,7 @@ create table if not exists public.order_services (
   created_at timestamptz not null default now(),
   primary key (order_id, service_name),
   constraint order_services_unit_check check (
-    quantity_unit = case when service_name = 'Dry Cleaning' then 'item' else 'kg' end
+    quantity_unit = 'kg'
   ),
   constraint order_services_price_check check (
     estimated_total = case
@@ -139,7 +139,7 @@ begin
     end)
     from unnest(p_service_names) as selected(name)
   );
-  v_unit := case when p_service_names[1] = 'Dry Cleaning' then 'item' else 'kg' end;
+  v_unit := 'kg';
 
   insert into public.orders (
     user_id, customer_name, service_name, quantity, quantity_unit, address,
@@ -155,7 +155,7 @@ begin
     v_order_id,
     selected.name,
     1,
-    case when selected.name = 'Dry Cleaning' then 'item' else 'kg' end,
+    'kg',
     case selected.name
       when 'Wash & Fold' then 45
       when 'Ironing' then 35

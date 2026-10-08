@@ -17,23 +17,29 @@ begin
       check (preferred_payment_method in ('cash', 'gcash'));
   end if;
 
-  if not exists (
+  if exists (
     select 1
     from pg_constraint
     where conrelid = 'public.profiles'::regclass
       and conname = 'profiles_laundry_service_preference_check'
   ) then
-    alter table public.profiles
-      add constraint profiles_laundry_service_preference_check
-      check (
-        laundry_service_preference in (
-          'Wash & Fold',
-          'Wash Only',
-          'Dry Only',
-          'Ironing'
-        )
-      );
+    alter table public.profiles drop constraint profiles_laundry_service_preference_check;
   end if;
+
+  update public.profiles
+  set laundry_service_preference = case laundry_service_preference
+    when 'Wash Only' then 'Wash & Fold'
+    when 'Dry Only' then 'Dry Cleaning'
+    else laundry_service_preference
+  end;
+
+  alter table public.profiles
+    add constraint profiles_laundry_service_preference_check
+    check (
+      laundry_service_preference = '' or
+      string_to_array(laundry_service_preference, ', ') <@
+        array['Wash & Fold', 'Ironing', 'Dry Cleaning', 'Self Service']::text[]
+    );
 
   if not exists (
     select 1
