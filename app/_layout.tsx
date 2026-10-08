@@ -1,12 +1,12 @@
 import { Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Roboto_400Regular, Roboto_500Medium, Roboto_700Bold } from '@expo-google-fonts/roboto';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import type { Session } from '@supabase/supabase-js';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
 import { useEffect, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { requireSupabase } from '@/utils/supabase';
@@ -48,16 +48,12 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
-        <Stack.Protected guard={!session}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        </Stack.Protected>
-        <Stack.Protected guard={Boolean(session)}>
-          <Stack.Screen name="(customer)" options={{ headerShown: false }} />
-          <Stack.Screen name="(shared)" options={{ headerShown: false }} />
-          <Stack.Screen name="(customer-tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(staff-tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack.Protected>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(customer)" options={{ headerShown: false }} />
+        <Stack.Screen name="(shared)" options={{ headerShown: false }} />
+        <Stack.Screen name="(customer-tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(staff-tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

@@ -1,38 +1,64 @@
 # AquaCycle
 
-Expo Router laundry service app using Supabase Auth and Postgres.
+A laundry service app built with **Expo Router**, using **Supabase** for authentication and Postgres.
 
-## Setup Instructions
+## Getting Started
 
-Run this command to read `package.json` and download all required packages:
+### 1. Install dependencies
+
 ```sh
 npm install
-Read .env.example and follow its instructions to configure your environment variables.
+```
 
-Secret Staff Testing Code: Staffaccountdemo
+### 2. Configure environment variables
 
-Project Structure
-app/(auth)/ — Login and signup screens.
-app/(customer)/ — Customer-only support and preference screens.
-app/(customer-tabs)/ — Customer tab screens.
-app/(staff-tabs)/ — Staff tab screens.
-app/(shared)/ — Shared or role-aware screens (history, notifications, orders, password changes).
-app/ — Root navigation layout and modal routes.
-components/ui/, components/navigation/, components/customer/, and components/modals/ — Shared UI, navigation, customer widgets, and modal content.
-constants/, hooks/, logic/, utils/, and supabase/ — App configuration, hooks, domain helpers, integrations, and backend files.
+Read `.env.example` and follow its instructions to set up your environment variables.
 
-To-Do List
-Type DONE next to a task once it is implemented.
+### 3. Staff testing code
 
-[ ] Eye icon in password login field
-[ ] Login UI redesign
-[ ] Password reset / change functionality
-[ ] Email verification on sign-up
-[ ] Staff Portal: New Order UI redesign (allow staff to search for customers)
-[ ] Admin Portal implementation (Manage Customers, Staff, and generate Staff Registration Codes)
-[ ] Fix "See All" functionality on Staff Home
-[ ] "All Services" section (clickable via "See All" on Customer Home)
-[ ] Notification navigation (clicking a notification opens its order details for both Staff and Customer)
-[ ] Profile picture support (Staff and Customer)
+To test staff accounts, use this registration code:
 
-If any bugs or errors are found, please fix them.
+```
+Staffaccountdemo
+```
+
+## Project Structure
+
+| Path | Purpose |
+| --- | --- |
+| `app/(auth)/` | Login and signup screens |
+| `app/(customer)/` | Customer-only support and preference screens |
+| `app/(customer-tabs)/` | Customer tab screens |
+| `app/(staff-tabs)/` | Staff tab screens |
+| `app/(shared)/` | Shared or role-aware screens (history, notifications, orders, password changes) |
+| `app/` | Root navigation layout and modal routes |
+| `components/ui/`, `components/navigation/`, `components/customer/`, `components/modals/` | Shared UI, navigation, customer widgets, and modal content |
+| `constants/`, `hooks/`, `logic/`, `utils/`, `supabase/` | App configuration, hooks, domain helpers, integrations, and backend files |
+
+## To-Do List
+
+Type `DONE` next to a task once it is implemented.
+
+### Authentication
+- [ ] Eye icon in password login field
+- [ ] Login UI redesign
+- [ ] Password reset / change functionality
+- [ ] Email verification on sign-up
+
+### Staff Portal
+- [ ] New Order UI redesign (allow staff to search for customers)
+- [ ] Fix "See All" functionality on Staff Home
+
+### Admin Portal
+- [ ] Admin Portal implementation (manage customers, manage staff, and generate Staff Registration Codes)
+
+### Customer App
+- [ ] "All Services" section (clickable via "See All" on Customer Home)
+
+### General
+- [ ] Fix notifications
+- [ ] Profile picture support (Staff and Customer)
+
+## Bugs
+
+If you find any bugs or errors, please fix them.
