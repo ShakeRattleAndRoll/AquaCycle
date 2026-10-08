@@ -429,6 +429,11 @@ const CUSTOMER_SERVICES = [
   { id: '4', name: 'Self Service', unitPrice: 65, unit: 'kg', icon: 'water-outline' },
 ];
 const PICKUP_FEE = 10;
+const PREVIEW_ADD_ONS = [
+  { id: 'addon-1', name: 'Optional add-on 1' },
+  { id: 'addon-2', name: 'Optional add-on 2' },
+  { id: 'addon-3', name: 'Optional add-on 3' },
+];
 
 export function CustomerCreateOrderScreen() {
   const router = useRouter();
@@ -444,6 +449,8 @@ export function CustomerCreateOrderScreen() {
   const [confirmationText, setConfirmationText] = useState('');
   const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [serviceListOpen, setServiceListOpen] = useState(false);
+  const [previewQuantities, setPreviewQuantities] = useState<Record<string, string>>({});
+  const [previewAddOns, setPreviewAddOns] = useState<string[]>([]);
   const chosenServices = CUSTOMER_SERVICES.filter((item) => selectedServices.includes(item.id));
 
   useEffect(() => {
@@ -454,6 +461,11 @@ export function CustomerCreateOrderScreen() {
 
   const serviceEstimate = useMemo(() => chosenServices.reduce((sum, item) => sum + item.unitPrice, 0), [chosenServices]);
   const total = serviceEstimate + (pickup ? PICKUP_FEE : 0);
+  const quantityPreviewTotal = chosenServices.reduce((sum, item) => {
+    if (item.unit === 'fixed') return sum + item.unitPrice;
+    const quantity = Number(previewQuantities[item.id]);
+    return sum + (Number.isFinite(quantity) && quantity > 0 ? quantity * item.unitPrice : 0);
+  }, pickup ? PICKUP_FEE : 0);
 
   useEffect(() => {
     let active = true;
@@ -567,6 +579,16 @@ export function CustomerCreateOrderScreen() {
         </View>
       </View>
 
+      <View style={customerStyles.comingSoonCard}>
+        <View style={customerStyles.comingSoonIcon}>
+          <Ionicons name="cloud-offline-outline" size={19} color={theme.color.secondary} />
+        </View>
+        <View style={customerStyles.comingSoonCopy}>
+          <AppText style={customerStyles.comingSoonTitle}>Offline ordering · Coming soon</AppText>
+          <AppText style={customerStyles.comingSoonText}>Orders must be submitted while connected. Drafts are not saved on this device yet.</AppText>
+        </View>
+      </View>
+
       <AppText style={customerStyles.sectionTitle}>Choose a service</AppText>
       <View style={customerStyles.servicesContainer}>
         <TouchableOpacity style={[customerStyles.serviceCard, customerStyles.servicePicker]} onPress={() => setServiceListOpen((open) => !open)} activeOpacity={0.8} accessibilityRole="button" accessibilityState={{ expanded: serviceListOpen }}>
@@ -626,6 +648,61 @@ export function CustomerCreateOrderScreen() {
         <AppText style={customerStyles.label}>Service estimate</AppText>
         <AppText style={customerStyles.fieldHint}>Ironing is a fixed $35 charge. Other services are estimated and finalized by staff.</AppText>
         <AppText style={customerStyles.estimateAmount}>${serviceEstimate.toFixed(2)}</AppText>
+
+        <View style={customerStyles.previewPanel}>
+          <View style={customerStyles.previewPanelHeader}>
+            <View style={customerStyles.previewPanelTitleGroup}>
+              <AppText style={customerStyles.previewPanelTitle}>Estimate preview</AppText>
+              <AppText style={customerStyles.previewPanelSubtitle}>UI preview · not added to submitted order</AppText>
+            </View>
+            <View style={customerStyles.previewBadge}><AppText style={customerStyles.previewBadgeText}>PREVIEW</AppText></View>
+          </View>
+
+          {chosenServices.filter((service) => service.unit !== 'fixed').map((service) => (
+            <View key={service.id} style={customerStyles.quantityPreviewRow}>
+              <View style={customerStyles.quantityPreviewCopy}>
+                <AppText style={customerStyles.quantityPreviewName}>{service.name}</AppText>
+                <AppText style={customerStyles.quantityPreviewRate}>${service.unitPrice.toFixed(2)} / {service.unit}</AppText>
+              </View>
+              <AppTextInput
+                style={customerStyles.quantityPreviewInput}
+                placeholder={service.unit === 'kg' ? 'kg' : 'items'}
+                placeholderTextColor="#94a3b8"
+                value={previewQuantities[service.id] ?? ''}
+                onChangeText={(value) => setPreviewQuantities((current) => ({ ...current, [service.id]: value.replace(/[^0-9.]/g, '') }))}
+                keyboardType="decimal-pad"
+                accessibilityLabel={`Estimated ${service.unit} for ${service.name}`}
+              />
+            </View>
+          ))}
+
+          <AppText style={customerStyles.addOnTitle}>Optional paid add-ons</AppText>
+          <AppText style={customerStyles.previewHelp}>Placeholder choices and rates. Replace these with the shop&apos;s approved options.</AppText>
+          {PREVIEW_ADD_ONS.map((addOn) => {
+            const selected = previewAddOns.includes(addOn.id);
+            return (
+              <TouchableOpacity
+                key={addOn.id}
+                style={[customerStyles.addOnRow, selected && customerStyles.addOnRowSelected]}
+                onPress={() => setPreviewAddOns((current) => selected ? current.filter((id) => id !== addOn.id) : [...current, addOn.id])}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selected }}
+              >
+                <View style={[customerStyles.addOnCheck, selected && customerStyles.addOnCheckSelected]}>
+                  {selected ? <Ionicons name="checkmark" size={13} color="#ffffff" /> : null}
+                </View>
+                <AppText style={customerStyles.addOnName}>{addOn.name}</AppText>
+                <AppText style={customerStyles.addOnRate}>Rate TBD</AppText>
+              </TouchableOpacity>
+            );
+          })}
+
+          <View style={customerStyles.previewTotalRow}>
+            <AppText style={customerStyles.previewTotalLabel}>Preview total</AppText>
+            <AppText style={customerStyles.previewTotalAmount}>${quantityPreviewTotal.toFixed(2)}</AppText>
+          </View>
+          <AppText style={customerStyles.previewHelp}>Add-on rates are excluded. Quantity and add-on selections are visual previews and are not saved with the order yet.</AppText>
+        </View>
 
         <AppText style={customerStyles.label}>Pickup / Delivery Address</AppText>
 
@@ -818,6 +895,12 @@ const customerStyles = StyleSheet.create({
     gap: 14,
   },
 
+  comingSoonCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, marginTop: -10, marginBottom: 20, borderRadius: 15, borderWidth: 1, borderColor: '#dbeafe', backgroundColor: '#eff6ff' },
+  comingSoonIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#dbeafe' },
+  comingSoonCopy: { flex: 1 },
+  comingSoonTitle: { color: '#1e3a8a', fontSize: 12, fontWeight: '800' },
+  comingSoonText: { color: '#475569', fontSize: 10, lineHeight: 15, marginTop: 3 },
+
   introCard: { backgroundColor: '#eaf2ff', borderRadius: 22, padding: 20, marginBottom: 25 },
   introIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   introTitle: { fontSize: 21, fontWeight: '800', color: '#0f172a', fontFamily: 'Montserrat_700Bold' },
@@ -954,6 +1037,29 @@ const customerStyles = StyleSheet.create({
   paymentReferenceCard: { marginTop: -10, marginBottom: 20 },
 
   estimateAmount: { color: theme.color.secondary, fontSize: 24, fontWeight: '800', marginBottom: 14, fontFamily: 'Montserrat_700Bold' },
+  previewPanel: { padding: 14, marginBottom: 18, borderRadius: 16, borderWidth: 1, borderColor: '#dbe4f0', backgroundColor: '#f8fafc' },
+  previewPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
+  previewPanelTitleGroup: { flex: 1 },
+  previewPanelTitle: { color: '#0f172a', fontSize: 14, fontWeight: '800' },
+  previewPanelSubtitle: { color: '#64748b', fontSize: 10, marginTop: 3 },
+  previewBadge: { paddingHorizontal: 7, paddingVertical: 5, borderRadius: 8, backgroundColor: '#dbeafe' },
+  previewBadgeText: { color: theme.color.secondary, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  quantityPreviewRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#e8edf4' },
+  quantityPreviewCopy: { flex: 1 },
+  quantityPreviewName: { color: '#334155', fontSize: 12, fontWeight: '700' },
+  quantityPreviewRate: { color: '#64748b', fontSize: 10, marginTop: 2 },
+  quantityPreviewInput: { width: 86, height: 40, marginBottom: 0, paddingHorizontal: 10, textAlign: 'right', borderRadius: 10, borderWidth: 1, borderColor: '#dbe4f0', backgroundColor: '#ffffff', color: '#0f172a', fontSize: 12 },
+  addOnTitle: { color: '#334155', fontSize: 12, fontWeight: '800', marginTop: 14 },
+  previewHelp: { color: '#64748b', fontSize: 10, lineHeight: 15, marginTop: 4 },
+  addOnRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 9, marginTop: 6, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff' },
+  addOnRowSelected: { borderColor: '#93c5fd', backgroundColor: '#eff6ff' },
+  addOnCheck: { width: 18, height: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#cbd5e1', borderRadius: 5 },
+  addOnCheckSelected: { backgroundColor: theme.color.secondary, borderColor: theme.color.secondary },
+  addOnName: { flex: 1, color: '#334155', fontSize: 11, fontWeight: '600' },
+  addOnRate: { color: '#64748b', fontSize: 10, fontWeight: '700' },
+  previewTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: '#dbe4f0' },
+  previewTotalLabel: { color: '#334155', fontSize: 12, fontWeight: '700' },
+  previewTotalAmount: { color: theme.color.secondary, fontSize: 15, fontWeight: '800' },
 
   input: {
     height: 48,

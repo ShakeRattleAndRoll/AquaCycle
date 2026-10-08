@@ -77,6 +77,16 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.container}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void loadNotifications()} tintColor="#2563eb" />}
       >
+        <View style={styles.updatesInfoCard}>
+          <View style={styles.updatesInfoIcon}>
+            <Ionicons name="notifications-outline" size={19} color="#2563eb" />
+          </View>
+          <View style={styles.updatesInfoCopy}>
+            <AppText style={styles.updatesInfoTitle}>In-app updates</AppText>
+            <AppText style={styles.updatesInfoText}>Open or refresh this page to check for updates. Live refresh and phone alerts are coming soon.</AppText>
+          </View>
+          <View style={styles.comingSoonBadge}><AppText style={styles.comingSoonBadgeText}>SOON</AppText></View>
+        </View>
         {loading && notifications.length === 0 ? (
           <ActivityIndicator style={styles.loader} color="#2563eb" />
         ) : error ? (
@@ -127,6 +137,13 @@ const styles = StyleSheet.create({
   markReadText: { color: '#2563eb', fontSize: 12, fontWeight: '700' },
   title: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
   container: { paddingHorizontal: 20, paddingVertical: 12, flexGrow: 1 },
+  updatesInfoCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, marginBottom: 14, borderRadius: 16, backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#dbeafe' },
+  updatesInfoIcon: { width: 38, height: 38, borderRadius: 13, justifyContent: 'center', alignItems: 'center', backgroundColor: '#dbeafe' },
+  updatesInfoCopy: { flex: 1 },
+  updatesInfoTitle: { color: '#1e3a8a', fontSize: 13, fontWeight: '800' },
+  updatesInfoText: { color: '#475569', fontSize: 11, lineHeight: 16, marginTop: 3 },
+  comingSoonBadge: { borderRadius: 8, paddingHorizontal: 7, paddingVertical: 5, backgroundColor: '#ffffff' },
+  comingSoonBadgeText: { color: '#2563eb', fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
   loader: { marginTop: 40 },
   notifItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
   unreadItem: { backgroundColor: '#f8fbff' },
