@@ -4,6 +4,7 @@ import Entypo from '@expo/vector-icons/Entypo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { FunctionsHttpError, type Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { useState } from 'react';
 import {
   Alert,
@@ -139,6 +140,7 @@ export default function SignUp() {
         email: normalizedEmail,
         password,
         options: {
+          emailRedirectTo: Linking.createURL('confirm-email'),
           data: {
             full_name: fullName.trim(),
             username: normalizedUsername,
@@ -153,7 +155,7 @@ export default function SignUp() {
       if (!data.session) {
         Alert.alert(
           'Verify Your Email',
-          'Your AquaCycle account has been created. Please check your inbox and click the confirmation link before signing in.',
+          'Your AquaCycle account has been created. Check your inbox and open the confirmation link to finish signing up.',
           [
             {
               text: 'Go to Login',
@@ -278,7 +280,7 @@ export default function SignUp() {
           {usernameCheck === 'taken' && !fieldErrors.username ? <AppText style={styles.errorText}>This username is already taken. Try another one.</AppText> : null}
 
           <AppText style={styles.label}>Email</AppText>
-          <AppText style={styles.hint}>We will email you a code to verify this address.</AppText>
+          <AppText style={styles.hint}>We will email you a link to verify this address.</AppText>
           <AppTextInput
             placeholder="you@example.com"
             autoCapitalize="none"
