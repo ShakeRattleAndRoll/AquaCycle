@@ -15,6 +15,13 @@ type Order = {
   estimated_total: number; final_total: number | null; delivery_fee: number;
   created_at: string; completed_at: string | null;
 };
+type Customer = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  address: string;
+};
 const SERVICES = [
   { name: 'Wash & Fold', unit: 'kg', rate: 45 }, { name: 'Ironing', unit: 'kg', rate: 35 },
   { name: 'Dry Cleaning', unit: 'kg', rate: 120 }, { name: 'Wash & Iron', unit: 'kg', rate: 65 },
@@ -32,6 +39,10 @@ export default function StaffHomeScreen() {
   const [saving, setSaving] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [searchingCustomers, setSearchingCustomers] = useState(false);
   const [notes, setNotes] = useState('');
   const [selectedServices, setSelectedServices] = useState<string[]>(['Wash & Fold']);
   const [pickup, setPickup] = useState(true);
@@ -56,6 +67,55 @@ export default function StaffHomeScreen() {
     } finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { void loadDashboard(); }, [loadDashboard]));
+  const searchCustomers = async () => {
+    const query = customerSearch.trim();
+
+    if (query.length < 2) {
+      Alert.alert(
+        'Search customers',
+        'Enter at least 2 characters to search.'
+      );
+      return;
+    }
+
+    setSearchingCustomers(true);
+    setCustomers([]);
+
+    try {
+      const client = requireSupabase();
+
+      const { data, error } = await client.rpc(
+        'search_customers_for_staff',
+        { p_search: query }
+      );
+
+      if (error) throw error;
+
+      setCustomers((data ?? []) as Customer[]);
+
+      if (!data || data.length === 0) {
+        Alert.alert(
+          'No customers found',
+          'Try another name, email, phone number, or username.'
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        'Search failed',
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      setSearchingCustomers(false);
+    }
+  };
+
+  const selectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerName(customer.full_name || customer.email || '');
+    setAddress(customer.address || '');
+    setCustomerSearch(customer.full_name || customer.email || '');
+    setCustomers([]);
+  };
 
   const today = dateKey(new Date());
   const todayOrders = orders.filter((order) => dateKey(new Date(order.created_at)) === today);
@@ -76,8 +136,11 @@ export default function StaffHomeScreen() {
   const estimatedTotal = chosenServices.reduce((sum, service) => sum + service.rate, 0) + (pickup ? 10 : 0);
 
   const submitNewOrder = async () => {
-    if (!customerName.trim() || !address.trim() || !chosenServices.length) {
-      Alert.alert('Complete the order details', 'Enter the customer name and address, and choose at least one service.');
+    if (!selectedCustomer || !address.trim() || !chosenServices.length) {
+      Alert.alert(
+        'Complete the order details',
+        'Search for and select a registered customer, enter the address, and choose at least one service.'
+      );
       return;
     }
     setSaving(true);
@@ -86,8 +149,8 @@ export default function StaffHomeScreen() {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('Sign in before creating an order.');
-      const { error } = await client.rpc('create_order_with_payment', {
-        p_customer_name: customerName.trim(),
+      const { error } = await client.rpc('create_staff_order_with_payment', {
+        p_customer_id: selectedCustomer.id,
         p_address: address.trim(),
         p_notes: notes.trim() || null,
         p_pickup_delivery: pickup,
@@ -97,7 +160,15 @@ export default function StaffHomeScreen() {
       });
       if (error) throw error;
       setNewOrderOpen(false);
-      setCustomerName(''); setAddress(''); setNotes(''); setSelectedServices(['Wash & Fold']); setPickup(true); setPaymentMethod('cash');
+      setCustomerName('');
+      setAddress('');
+      setNotes('');
+      setCustomerSearch('');
+      setCustomers([]);
+      setSelectedCustomer(null);
+      setSelectedServices(['Wash & Fold']);
+      setPickup(true);
+      setPaymentMethod('cash');
       await loadDashboard();
       Alert.alert('Order created', 'The new order is now in the orders list.');
     } catch (error) {
@@ -153,7 +224,97 @@ export default function StaffHomeScreen() {
         <View style={styles.modalBackdrop}><View style={styles.modalSheet}>
           <View style={styles.modalHeader}><View><AppText style={styles.revenueLabelDark}>WALK-IN · STAFF-MANAGED</AppText><AppText style={styles.modalTitle}>New order</AppText></View><TouchableOpacity style={styles.closeButton} onPress={() => setNewOrderOpen(false)}><Feather name="x" size={22} color="#334155" /></TouchableOpacity></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <AppText style={styles.formLabel}>Customer name</AppText><AppTextInput style={styles.formInput} value={customerName} onChangeText={setCustomerName} placeholder="Enter customer name" />
+
+            <AppText style={styles.formLabel}>Search registered customer</AppText>
+
+            <View style={styles.customerSearchRow}>
+              <View style={styles.customerSearchInput}>
+                <AppTextInput
+                  style={styles.formInput}
+                  value={customerSearch}
+                  onChangeText={(value) => {
+                    setCustomerSearch(value);
+                    setSelectedCustomer(null);
+                    setCustomerName('');
+                    setAddress('');
+                    setCustomers([]);
+                  }}
+                  placeholder="Name, email, phone, or username"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.searchButton}
+                onPress={() => { void searchCustomers(); }}
+                disabled={searchingCustomers}
+              >
+                {searchingCustomers ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Feather name="search" size={19} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {customers.map((customer) => (
+              <TouchableOpacity
+                key={customer.id}
+                style={styles.customerResult}
+                onPress={() => selectCustomer(customer)}
+              >
+                <View style={styles.customerResultIcon}>
+                  <Feather name="user" size={18} color={theme.color.secondary} />
+                </View>
+                <View style={styles.customerResultDetails}>
+                  <AppText style={styles.customerResultName}>
+                    {customer.full_name || customer.email || 'Registered customer'}
+                  </AppText>
+                  <AppText style={styles.customerResultMeta}>
+                    {customer.email}
+                  </AppText>
+                  {customer.phone ? (
+                    <AppText style={styles.customerResultMeta}>
+                      {customer.phone}
+                    </AppText>
+                  ) : null}
+                </View>
+                <Feather name="chevron-right" size={20} color="#64748b" />
+              </TouchableOpacity>
+            ))}
+
+            {selectedCustomer ? (
+              <View style={styles.selectedCustomerCard}>
+                <Feather name="check-circle" size={19} color="#15803d" />
+                <View style={styles.customerResultDetails}>
+                  <AppText style={styles.selectedCustomerTitle}>
+                    Customer selected
+                  </AppText>
+                  <AppText style={styles.customerResultName}>
+                    {customerName}
+                  </AppText>
+                  <AppText style={styles.customerResultMeta}>
+                    {selectedCustomer.email}
+                  </AppText>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedCustomer(null);
+                    setCustomerName('');
+                    setAddress('');
+                    setCustomerSearch('');
+                    setCustomers([]);
+                  }}
+                >
+                  <Feather name="x-circle" size={20} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <AppText style={styles.customerSearchHint}>
+                Search and select a registered customer before creating an order.
+              </AppText>
+            )}
+
             <AppText style={styles.formLabel}>Services</AppText><View style={styles.serviceChoices}>{SERVICES.map((service) => { const selected = selectedServices.includes(service.name); return <TouchableOpacity key={service.name} style={[styles.serviceChoice, selected && styles.serviceChoiceSelected]} onPress={() => setSelectedServices((current) => selected ? current.filter((name) => name !== service.name) : [...current, service.name])}><AppText style={[styles.serviceChoiceText, selected && styles.serviceChoiceTextSelected]}>{service.name} · ₱{service.rate} {service.name === 'Ironing' ? 'fixed' : `/${service.unit} estimate`}</AppText></TouchableOpacity>; })}</View>
             <AppText style={styles.formLabel}>Pickup / delivery address</AppText><AppTextInput style={styles.formInput} value={address} onChangeText={setAddress} placeholder="Enter customer address" />
             <AppText style={styles.formLabel}>Additional notes</AppText><AppTextInput style={[styles.formInput, styles.notesInput]} value={notes} onChangeText={setNotes} placeholder="Optional instructions" multiline />
@@ -177,6 +338,78 @@ function Action({ icon, label, onPress }: { icon: React.ReactNode; label: string
 }
 
 const styles = StyleSheet.create({
+
+  customerSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  customerSearchInput: {
+    flex: 1,
+  },
+  searchButton: {
+    width: 48,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: theme.color.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customerResult: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 10,
+  },
+  customerResultIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#eaf2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customerResultDetails: {
+    flex: 1,
+  },
+  customerResultName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  customerResultMeta: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 3,
+  },
+  selectedCustomerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    marginTop: 10,
+    borderRadius: 12,
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  selectedCustomerTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803d',
+    marginBottom: 3,
+  },
+  customerSearchHint: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 8,
+  },
+
   safeArea: { flex: 1, ...theme.color.lightBackground },
   scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
   greetingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },

@@ -46,8 +46,8 @@ Type `DONE` next to a task once it is implemented.
 - [ ] Email verification on sign-up
 
 ### Staff Portal
-- [ ] New Order UI redesign (allow staff to search for customers)
-- [ ] Fix "See All" functionality on Staff Home
+- [Done] New Order UI redesign (allow staff to search for customers)
+- [Done] Fix "See All" functionality on Staff Home
 
 ### Admin Portal
 - [ ] Admin Portal implementation (manage customers, manage staff, and generate Staff Registration Codes)
