@@ -30,9 +30,16 @@ export async function fetchAppNotifications(): Promise<AppNotification[]> {
   const { data, error } = await client
     .from('notifications')
     .select('id,order_id,notification_type,title,message,created_at,read_at')
+    .eq('recipient_id', user.id)
     .order('created_at', { ascending: false })
     .limit(50);
-  if (error) throw error;
+
+  if (error) {
+    console.error('Fetch notifications error:', error.message);
+    throw error;
+  }
+
+  console.log('Notifications loaded:', data?.length ?? 0);
 
   return (data ?? []).map((item) => {
     const style = NOTIFICATION_STYLE[item.notification_type] ?? NOTIFICATION_STYLE.order_status;

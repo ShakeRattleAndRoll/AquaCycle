@@ -8,6 +8,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -19,25 +21,91 @@ import { requireSupabase } from '../../utils/supabase';
 export default function HomeScreen() {
   const router = useRouter();
   const greet = greetings();
-  const [username, setUsername] = useState('');
-  const shortUsername = username.length > 8 ? `${username.slice(0, 8)}...` : username;
 
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    const loadCustomerName = async () => {
-      try {
-        const client = requireSupabase();
-        const { data: { user } } = await client.auth.getUser();
-        if (!user) return;
-        const { data } = await client.from('profiles').select('username').eq('id', user.id).maybeSingle();
-        if (active) setUsername(data?.username?.trim() || user.email?.split('@')[0] || 'there');
-      } catch {
-        // Keep the friendly fallback if the profile cannot be reached.
-      }
-    };
-    void loadCustomerName();
-    return () => { active = false; };
-  }, []));
+  const [username, setUsername] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarLoading, setAvatarLoading] = useState(true);
+
+  const shortUsername =
+    username.length > 8 ? `${username.slice(0, 8)}...` : username;
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      const loadCustomerProfile = async () => {
+        setAvatarLoading(true);
+
+        try {
+          const client = requireSupabase();
+
+          const {
+            data: { user },
+            error: userError,
+          } = await client.auth.getUser();
+
+          if (userError) throw userError;
+
+          if (!user) {
+            if (active) {
+              setUsername('');
+              setAvatarUrl(null);
+              setAvatarLoading(false);
+            }
+            return;
+          }
+
+          const { data, error } = await client
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (error) throw error;
+
+          if (!active) return;
+
+          setUsername(
+            data?.username?.trim() ||
+              user.email?.split('@')[0] ||
+              'there',
+          );
+
+          if (data?.avatar_url) {
+            const { data: signedImage, error: imageError } =
+              await client.storage
+                .from('avatars')
+                .createSignedUrl(data.avatar_url, 3600);
+
+            if (!active) return;
+
+            if (!imageError && signedImage?.signedUrl) {
+              setAvatarUrl(signedImage.signedUrl);
+            } else {
+              setAvatarUrl(null);
+            }
+          } else {
+            setAvatarUrl(null);
+          }
+        } catch (error) {
+          if (active) {
+            setAvatarUrl(null);
+            console.warn('Unable to load home profile picture:', error);
+          }
+        } finally {
+          if (active) {
+            setAvatarLoading(false);
+          }
+        }
+      };
+
+      void loadCustomerProfile();
+
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   return (
     <ScrollView
@@ -47,19 +115,38 @@ export default function HomeScreen() {
       <View style={styles.headerRow}>
         <View style={styles.greetingBlock}>
           <AppText style={styles.greetSubtitle}>{greet}</AppText>
-          <AppText style={styles.greetTitle} numberOfLines={1} ellipsizeMode="tail">
+          <AppText
+            style={styles.greetTitle}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             Welcome{shortUsername ? `, ${shortUsername}` : ''}!
           </AppText>
         </View>
 
         <View style={styles.headerActions}>
           <TouchableOpacity
+            style={styles.profileButton}
             activeOpacity={0.7}
             onPress={() => router.replace('/(customer-tabs)/profile')}
             accessibilityRole="button"
-            accessibilityLabel="Profile"
+            accessibilityLabel="Open profile"
           >
-            <Ionicons name="person-circle-outline" size={50} color="#0f172a" />
+            {avatarLoading ? (
+              <ActivityIndicator color={theme.color.secondary} />
+            ) : avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={styles.profileImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons
+                name="person-circle-outline"
+                size={50}
+                color="#0f172a"
+              />
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -106,9 +193,7 @@ export default function HomeScreen() {
         <AppText style={styles.sectionTitle}>Choose a service</AppText>
 
         <TouchableOpacity
-          onPress={() =>
-            router.replace('/(customer-tabs)/orderDetails')
-          }
+          onPress={() => router.push('/(customer-tabs)/services')}
           activeOpacity={0.7}
         >
           <AppText style={styles.seeAllText}>See all</AppText>
@@ -140,18 +225,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 18,
   },
+
   greetingBlock: {
     flex: 1,
     minWidth: 0,
     paddingRight: 8,
     overflow: 'hidden',
   },
+
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     flexShrink: 0,
   },
+
+  profileButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: '#eaf2ff',
+  },
+
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+  },
+
   notificationButton: {
     width: 40,
     height: 40,
@@ -276,4 +380,3 @@ const styles = StyleSheet.create({
     marginHorizontal: -10,
   },
 });
-

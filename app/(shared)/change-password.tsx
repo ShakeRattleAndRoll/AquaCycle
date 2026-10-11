@@ -29,46 +29,77 @@ export default function ChangePasswordScreen() {
       Alert.alert('Missing information', 'Fill in all three password fields.');
       return;
     }
+
     if (newPassword.length < 8) {
-      Alert.alert('Password too short', 'Your new password must be at least 8 characters.');
+      Alert.alert(
+        'Password too short',
+        'Your new password must be at least 8 characters.'
+      );
       return;
     }
+
     if (newPassword !== confirmPassword) {
-      Alert.alert('Passwords do not match', 'Re-enter the same new password in both fields.');
+      Alert.alert(
+        'Passwords do not match',
+        'Re-enter the same new password in both fields.'
+      );
       return;
     }
+
     if (newPassword === currentPassword) {
-      Alert.alert('Choose a new password', 'Your new password must be different from your current password.');
+      Alert.alert(
+        'Choose a new password',
+        'Your new password must be different from your current password.'
+      );
       return;
     }
 
     setSaving(true);
+
     try {
       const client = requireSupabase();
-      const { data: { user }, error: userError } = await client.auth.getUser();
-      if (userError) throw userError;
-      if (!user) throw new Error('Your session has expired. Sign in again and retry.');
 
-      const { error } = await client.auth.updateUser({
-        current_password: currentPassword,
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user?.email) {
+        throw new Error(
+          'Your account email could not be found. Please sign in again.'
+        );
+      }
+
+      const { error: verifyError } =
+        await client.auth.signInWithPassword({
+          email: user.email,
+          password: currentPassword,
+        });
+
+      if (verifyError) {
+        throw new Error('Your current password is incorrect. Please try again.');
+      }
+
+      const { error: updateError } = await client.auth.updateUser({
         password: newPassword,
       });
-      if (error) throw error;
+
+      if (updateError) throw updateError;
 
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      Alert.alert('Password changed', 'Your account password has been updated.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Please try again.';
-      const lowerMessage = message.toLowerCase();
+
       Alert.alert(
-        lowerMessage.includes('password') && (lowerMessage.includes('current') || lowerMessage.includes('incorrect') || lowerMessage.includes('invalid'))
-          ? 'Current password is incorrect'
-          : 'Unable to change password',
-        lowerMessage.includes('current') || lowerMessage.includes('incorrect') || lowerMessage.includes('invalid')
-          ? 'Check your current password and try again.'
-          : message,
+        'Password changed',
+        'Your account password has been updated.'
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to change password',
+        error instanceof Error ? error.message : 'Please try again.'
       );
     } finally {
       setSaving(false);

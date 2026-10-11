@@ -40,8 +40,8 @@ Staffaccountdemo
 Type `DONE` next to a task once it is implemented.
 
 ### Authentication
-- [ ] Eye icon in password login field
-- [ ] Login UI redesign
+- [Done] Eye icon in password login field
+- [Done] Login UI redesign
 - [ ] Password reset / change functionality
 - [ ] Email verification on sign-up
 
@@ -53,7 +53,7 @@ Type `DONE` next to a task once it is implemented.
 - [ ] Admin Portal implementation (manage customers, manage staff, and generate Staff Registration Codes)
 
 ### Customer App
-- [ ] "All Services" section (clickable via "See All" on Customer Home)
+- [Done] "All Services" section (clickable via "See All" on Customer Home)
 
 ### General
 - [ ] Fix notifications

@@ -134,7 +134,9 @@ export default function StaffHomeScreen() {
           <Action icon={<Ionicons name="bar-chart-outline" size={22} color={theme.color.secondary} />} label="Sales report" onPress={() => router.push('/(staff-tabs)/report')} />
         </View>
 
-        <View style={styles.sectionHeaderRow}><AppText style={styles.sectionTitle}>Recent orders</AppText><TouchableOpacity onPress={() => router.push('/staffOrders')}><AppText style={[styles.seeAllText, { color: theme.color.secondary }]}>See all</AppText></TouchableOpacity></View>
+        <View style={styles.sectionHeaderRow}><AppText style={styles.sectionTitle}>Recent orders</AppText><TouchableOpacity
+          onPress={() => router.push('/(staff-tabs)/staffOrders')}
+        ><AppText style={[styles.seeAllText, { color: theme.color.secondary }]}>See all</AppText></TouchableOpacity></View>
         <View style={[styles.ordersCard, theme.color.lightBox]}>
           {loading ? <ActivityIndicator color={theme.color.secondary} style={{ padding: 22 }} /> : orders.length === 0 ? <AppText style={styles.emptyText}>No orders yet. Create one to get started.</AppText> : orders.slice(0, 4).map((order, index) => <React.Fragment key={order.id}>
             <TouchableOpacity style={styles.orderRow} onPress={() => router.push('/orders')}>
@@ -224,4 +226,3 @@ const styles = StyleSheet.create({
   submitButton: { minHeight: 50, marginTop: 20, borderRadius: 14, backgroundColor: theme.color.secondary, alignItems: 'center', justifyContent: 'center' },
   submitText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
-

@@ -151,11 +151,21 @@ export default function SignUp() {
       if (error) throw error;
 
       if (!data.session) {
-        Alert.alert('Check your email', 'Confirm your email address, then sign in.');
-        router.replace('/login');
+        Alert.alert(
+          'Verify Your Email',
+          'Your AquaCycle account has been created. Please check your inbox and click the confirmation link before signing in.',
+          [
+            {
+              text: 'Go to Login',
+              onPress: () => router.replace('/(auth)/login'),
+            },
+          ],
+          { cancelable: false }
+        );
       } else {
         router.replace('/(customer-tabs)');
       }
+
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Please try again.';
       const normalizedMessage = message.toLowerCase();
