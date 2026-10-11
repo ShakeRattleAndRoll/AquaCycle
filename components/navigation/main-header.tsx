@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../constants/app-theme';
 import { requireSupabase } from '../../utils/supabase';
+import { subscribeToAppNotifications } from '../../utils/notifications';
 
 type HeaderNotification = {
   id: string;
@@ -54,6 +55,7 @@ export default function CustomHeader() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState('');
+  const [liveOrderNotification, setLiveOrderNotification] = useState<HeaderNotification | null>(null);
 
   const isStaffRoute = pathname.includes('staffHome') || pathname.includes('staffOrders') || pathname.includes('QRscanning') || pathname.includes('report') || pathname.includes('staffProfile') || pathname.includes('customerOrder');
   const hasUnread = unreadCount > 0;
@@ -92,6 +94,33 @@ export default function CustomHeader() {
   useEffect(() => {
     void loadNotifications();
   }, [loadNotifications, pathname, showNotifications]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    void subscribeToAppNotifications((event) => {
+      void loadNotifications();
+      if (event.eventType !== 'INSERT' || event.new.notification_type !== 'order_received') return;
+
+      const notification = event.new as unknown as HeaderNotification;
+      if (notification.id && notification.order_id) setLiveOrderNotification(notification);
+    }, (status, error) => {
+      if (!active) return;
+      if (status === 'SUBSCRIBED') setNotificationsError('');
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        setNotificationsError(error?.message || `Live notifications connection: ${status}.`);
+      }
+    }).then((stop) => {
+      if (active) unsubscribe = stop;
+      else stop();
+    }).catch((error) => {
+      if (active) setNotificationsError(error instanceof Error ? error.message : 'Live notifications could not be connected.');
+    });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [loadNotifications]);
 
   const handleSeeAll = () => {
     setShowNotifications(false);
@@ -194,6 +223,32 @@ export default function CustomHeader() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <Modal visible={Boolean(liveOrderNotification)} transparent animationType="fade" onRequestClose={() => setLiveOrderNotification(null)}>
+        <View style={styles.liveOverlay}>
+          <View style={styles.liveCard}>
+            <View style={styles.liveIcon}><MaterialCommunityIcons name="receipt-text-outline" size={24} color="#2563eb" /></View>
+            <AppText style={styles.liveEyebrow}>NEW ORDER</AppText>
+            <AppText style={styles.liveTitle}>{liveOrderNotification?.title ?? 'New order'}</AppText>
+            <AppText style={styles.liveMessage}>{liveOrderNotification?.message ?? 'A new order has arrived.'}</AppText>
+            <TouchableOpacity
+              style={styles.liveOpenButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                const notification = liveOrderNotification;
+                setLiveOrderNotification(null);
+                if (notification) void openNotification(notification);
+              }}
+              accessibilityRole="button"
+            >
+              <AppText style={styles.liveOpenText}>View order</AppText>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.liveDismissButton} onPress={() => setLiveOrderNotification(null)} accessibilityRole="button">
+              <AppText style={styles.liveDismissText}>Dismiss</AppText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -228,4 +283,14 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#f1f5f9' },
   seeAllButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 14, marginTop: 6, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   seeAllText: { fontSize: 13, fontWeight: '700', color: theme.color.secondary },
+  liveOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: 'rgba(15,23,42,0.48)' },
+  liveCard: { width: '100%', maxWidth: 360, borderRadius: 24, padding: 24, alignItems: 'center', backgroundColor: '#ffffff', shadowColor: '#000000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 12 },
+  liveIcon: { width: 54, height: 54, borderRadius: 18, marginBottom: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eaf2ff' },
+  liveEyebrow: { color: '#2563eb', fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
+  liveTitle: { marginTop: 7, color: '#0f172a', fontSize: 21, fontWeight: '800', textAlign: 'center' },
+  liveMessage: { marginTop: 8, color: '#64748b', fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  liveOpenButton: { width: '100%', minHeight: 48, marginTop: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.color.secondary },
+  liveOpenText: { color: '#ffffff', fontSize: 14, fontWeight: '800' },
+  liveDismissButton: { minHeight: 42, paddingHorizontal: 16, marginTop: 6, justifyContent: 'center' },
+  liveDismissText: { color: '#64748b', fontSize: 13, fontWeight: '700' },
 });

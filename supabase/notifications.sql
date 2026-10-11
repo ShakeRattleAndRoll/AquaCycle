@@ -14,6 +14,23 @@ create table if not exists public.notifications (
   read_at timestamptz
 );
 
+-- Normalize projects that used the older is_read boolean column.
+alter table public.notifications
+  add column if not exists read_at timestamptz;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notifications'
+      and column_name = 'is_read'
+  ) then
+    execute 'update public.notifications set read_at = coalesce(read_at, created_at) where is_read and read_at is null';
+  end if;
+end;
+$$;
+
 create index if not exists notifications_recipient_created_idx
   on public.notifications(recipient_id, created_at desc);
 
@@ -101,3 +118,18 @@ drop trigger if exists orders_create_notifications on public.orders;
 create trigger orders_create_notifications
   after insert or update on public.orders
   for each row execute function public.create_order_notifications();
+
+-- Enable filtered live updates for the app when the standard publication exists.
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+    and not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'notifications'
+    ) then
+    execute 'alter publication supabase_realtime add table public.notifications';
+  end if;
+end;
+$$;

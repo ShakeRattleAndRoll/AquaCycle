@@ -5,7 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppNotification, fetchAppNotifications, markAllAppNotificationsRead, markAppNotificationRead } from '../../utils/notifications';
+import { AppNotification, fetchAppNotifications, markAllAppNotificationsRead, markAppNotificationRead, subscribeToAppNotifications } from '../../utils/notifications';
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -53,7 +53,24 @@ export default function NotificationsScreen() {
   };
 
   useFocusEffect(useCallback(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
     void loadNotifications();
+    void subscribeToAppNotifications(() => { void loadNotifications(); }, (status, subscribeError) => {
+      if (!active) return;
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        setError(subscribeError?.message || `Live notifications connection: ${status}.`);
+      }
+    }).then((stop) => {
+      if (active) unsubscribe = stop;
+      else stop();
+    }).catch((subscribeError) => {
+      if (active) setError(subscribeError instanceof Error ? subscribeError.message : 'Live notifications could not be connected.');
+    });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, [loadNotifications]));
 
   const handleGoBack = () => {
@@ -83,9 +100,9 @@ export default function NotificationsScreen() {
           </View>
           <View style={styles.updatesInfoCopy}>
             <AppText style={styles.updatesInfoTitle}>In-app updates</AppText>
-            <AppText style={styles.updatesInfoText}>Open or refresh this page to check for updates. Live refresh and phone alerts are coming soon.</AppText>
+            <AppText style={styles.updatesInfoText}>Order and payment updates refresh here automatically while this page is open.</AppText>
           </View>
-          <View style={styles.comingSoonBadge}><AppText style={styles.comingSoonBadgeText}>SOON</AppText></View>
+          <View style={styles.comingSoonBadge}><AppText style={styles.comingSoonBadgeText}>LIVE</AppText></View>
         </View>
         {loading && notifications.length === 0 ? (
           <ActivityIndicator style={styles.loader} color="#2563eb" />

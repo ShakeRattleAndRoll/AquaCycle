@@ -7,7 +7,7 @@ create table if not exists public.notifications (
   notification_type text not null,
   title text not null,
   message text not null,
-  is_read boolean not null default false,
+  read_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -18,8 +18,20 @@ alter table public.notifications
   add column if not exists notification_type text,
   add column if not exists title text,
   add column if not exists message text,
-  add column if not exists is_read boolean not null default false,
+  add column if not exists read_at timestamptz,
   add column if not exists created_at timestamptz not null default now();
+
+-- Keep read state when upgrading a database created with the older boolean field.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'notifications' and column_name = 'is_read'
+  ) then
+    execute 'update public.notifications set read_at = coalesce(read_at, created_at) where is_read and read_at is null';
+  end if;
+end;
+$$;
 
 create index if not exists notifications_recipient_created_idx
   on public.notifications (recipient_id, created_at desc);
@@ -27,7 +39,7 @@ create index if not exists notifications_recipient_created_idx
 alter table public.notifications enable row level security;
 revoke all on public.notifications from anon, authenticated;
 grant select on public.notifications to authenticated;
-grant update (is_read) on public.notifications to authenticated;
+grant update (read_at) on public.notifications to authenticated;
 
 drop policy if exists "Customers can read their notifications" on public.notifications;
 drop policy if exists "Customers can mark their notifications read" on public.notifications;

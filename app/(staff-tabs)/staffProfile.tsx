@@ -1,9 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
+import ProfileImageCropper from '@/components/ProfileImageCropper';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -26,6 +29,9 @@ export default function StaffProfileScreen() {
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState('staff');
   const [userId, setUserId] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
   const [draft, setDraft] = useState({ name: '', phone: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,7 +51,7 @@ export default function StaffProfileScreen() {
 
         const { data: profile, error: profileError } = await client
           .from('profiles')
-          .select('full_name, phone, role')
+          .select('full_name, phone, role, avatar_url')
           .eq('id', user.id)
           .single();
         if (profileError) throw profileError;
@@ -56,6 +62,12 @@ export default function StaffProfileScreen() {
           setEmail(user.email ?? '');
           setPhone(profile.phone || '');
           setRole(profile.role || 'staff');
+        }
+        if (profile.avatar_url) {
+          const { data: image, error: imageError } = await client.storage
+            .from('avatars')
+            .createSignedUrl(profile.avatar_url, 3600);
+          if (!imageError && image?.signedUrl && active) setAvatarUrl(image.signedUrl);
         }
       } catch (error) {
         if (active) {
@@ -81,6 +93,56 @@ export default function StaffProfileScreen() {
   const openEditor = () => {
     setDraft({ name, phone });
     setIsEditing(true);
+  };
+
+  const changeProfilePicture = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission required', 'Allow photo library access to select a profile picture.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]?.uri) setCropImage(result.assets[0].uri);
+    } catch (error) {
+      Alert.alert('Unable to select image', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
+  const uploadProfilePicture = async (croppedImage: string) => {
+    setAvatarLoading(true);
+    try {
+      const client = requireSupabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('Please sign in again.');
+
+      const response = await fetch(croppedImage);
+      if (!response.ok) throw new Error('Unable to read the selected image.');
+      const imageBuffer = await response.arrayBuffer();
+      const objectPath = `${user.id}/avatar.jpg`;
+      const { error: uploadError } = await client.storage.from('avatars').upload(objectPath, imageBuffer, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+      if (uploadError) throw uploadError;
+      const { error: saveError } = await client.from('profiles').update({ avatar_url: objectPath }).eq('id', user.id);
+      if (saveError) throw saveError;
+      const { data: image, error: signedError } = await client.storage.from('avatars').createSignedUrl(objectPath, 3600);
+      if (signedError || !image?.signedUrl) throw signedError ?? new Error('Unable to display the uploaded image.');
+      setAvatarUrl(image.signedUrl);
+      setCropImage(null);
+      Alert.alert('Success', 'Your profile picture has been updated.');
+    } catch (error) {
+      Alert.alert('Upload failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setAvatarLoading(false);
+    }
   };
 
   const saveProfile = async () => {
@@ -158,9 +220,12 @@ export default function StaffProfileScreen() {
           </View>
         ) : (
           <View style={styles.profileCard}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
+            <TouchableOpacity style={styles.avatarTouchable} onPress={() => void changeProfilePicture()} disabled={avatarLoading} accessibilityRole="button" accessibilityLabel="Change profile picture">
+              <View style={styles.avatarCircle}>
+                {avatarLoading ? <ActivityIndicator color={theme.color.secondary} /> : avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initials}</Text>}
+              </View>
+              <View style={styles.avatarEditBadge}><Feather name="camera" size={11} color="#ffffff" /></View>
+            </TouchableOpacity>
             <View style={styles.profileMeta}>
               <Text style={styles.profileName} numberOfLines={1}>{name || 'Staff member'}</Text>
               <Text style={styles.profileRole}>AquaCycle team</Text>
@@ -289,6 +354,7 @@ export default function StaffProfileScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
+      <ProfileImageCropper image={cropImage} onCancel={() => setCropImage(null)} onConfirm={(image) => void uploadProfilePicture(image)} />
       <Modal visible={logoutConfirmationOpen} transparent animationType="fade" onRequestClose={() => setLogoutConfirmationOpen(false)}>
         <View style={styles.logoutBackdrop}>
           <View style={styles.logoutCard}>
@@ -410,7 +476,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#e9f0ff',
     ...theme.spacing.trueCenter,
+    overflow: 'hidden',
   },
+  avatarTouchable: { position: 'relative' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 20 },
+  avatarEditBadge: { position: 'absolute', right: -4, bottom: -4, width: 23, height: 23, borderRadius: 12, backgroundColor: theme.color.secondary, borderWidth: 2, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   avatarText: {
     color: theme.color.secondary,
     fontSize: 19,

@@ -13,6 +13,39 @@ export type AppNotification = {
   isStaffNotification: boolean;
 };
 
+export async function subscribeToAppNotifications(
+  onChange: (event: { eventType: string; new: Record<string, unknown> }) => void,
+  onStatus?: (status: string, error?: Error) => void,
+) {
+  const client = requireSupabase();
+  const { data: { user }, error } = await client.auth.getUser();
+  if (error) throw error;
+  if (!user) throw new Error('Sign in to receive notifications.');
+
+  const channel = client
+    .channel(`app-notifications:${user.id}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'notifications',
+      filter: `recipient_id=eq.${user.id}`,
+    }, (payload) => onChange({
+      eventType: payload.eventType,
+      new: payload.new as Record<string, unknown>,
+    }));
+
+  channel.subscribe((status, error) => {
+    console.info('Notifications Realtime status:', status, error?.message ?? '');
+    onStatus?.(status, error instanceof Error ? error : undefined);
+  });
+
+  return () => {
+    void channel.unsubscribe().catch((unsubscribeError: unknown) => {
+      console.warn('Could not unsubscribe from notifications:', unsubscribeError);
+    });
+  };
+}
+
 const NOTIFICATION_STYLE: Record<string, { icon: string; color: string; background: string }> = {
   order_received: { icon: 'receipt-text-outline', color: '#0284c7', background: '#e0f2fe' },
   order_status: { icon: 'washing-machine', color: '#0284c7', background: '#e0f2fe' },

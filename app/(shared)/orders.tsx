@@ -10,6 +10,7 @@ import { requireSupabase } from '../../utils/supabase';
 import { theme } from '../../constants/app-theme';
 
 export default function OrdersRoute() {
+  const router = useRouter();
   const [role, setRole] = useState<'staff' | 'customer' | null>(null);
 
   useEffect(() => {
@@ -17,19 +18,37 @@ export default function OrdersRoute() {
     const loadRole = async () => {
       try {
         const client = requireSupabase();
+        const { data: { session }, error: sessionError } = await client.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!session) {
+          router.replace('/(auth)/login');
+          return;
+        }
         const { data: { user }, error: userError } = await client.auth.getUser();
         if (userError) throw userError;
-        if (!user) throw new Error('Sign in to continue.');
+        if (!user) {
+          router.replace('/(auth)/login');
+          return;
+        }
         const { data: profile, error } = await client.from('profiles').select('role').eq('id', user.id).single();
         if (error) throw error;
         if (mounted) setRole(profile.role === 'staff' ? 'staff' : 'customer');
       } catch (error) {
-        Alert.alert('Unable to open orders', error instanceof Error ? error.message : 'Please try again.');
+        const message = error instanceof Error ? error.message : 'Please try again.';
+        if (message.toLowerCase().includes('auth session missing')) {
+          router.replace('/(auth)/login');
+          return;
+        }
+        if (mounted) {
+          Alert.alert('Unable to open orders', message, [
+            { text: 'Back to Home', onPress: () => router.replace('/(customer-tabs)') },
+          ]);
+        }
       }
     };
     void loadRole();
     return () => { mounted = false; };
-  }, []);
+  }, [router]);
 
   if (role === 'staff') return <StaffOrdersScreen />;
   if (role === 'customer') return <CustomerCreateOrderScreen />;

@@ -63,6 +63,18 @@ export default function OrdersDetails() {
     setLoading(true);
     try {
       const client = requireSupabase();
+      const { data: { session }, error: sessionError } = await client.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) {
+        setOrders([]);
+        Alert.alert(
+          'Sign in required',
+          'Your session has expired. Sign in again to view your laundry orders.',
+          [{ text: 'Sign in', onPress: () => router.replace('/(auth)/login') }],
+          { cancelable: false }
+        );
+        return;
+      }
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('Sign in to view your orders.');
@@ -72,11 +84,22 @@ export default function OrdersDetails() {
       const loadedOrders = (data ?? []) as Order[];
       setOrders(loadedOrders);
     } catch (error) {
-      Alert.alert('Unable to load orders', error instanceof Error ? error.message : 'Please try again.');
+      const message = error instanceof Error ? error.message : 'Please try again.';
+      if (message.toLowerCase().includes('auth session missing')) {
+        setOrders([]);
+        Alert.alert(
+          'Sign in required',
+          'Your session has expired. Sign in again to view your laundry orders.',
+          [{ text: 'Sign in', onPress: () => router.replace('/(auth)/login') }],
+          { cancelable: false }
+        );
+      } else {
+        Alert.alert('Unable to load orders', message);
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useFocusEffect(useCallback(() => {
     void loadOrders();
