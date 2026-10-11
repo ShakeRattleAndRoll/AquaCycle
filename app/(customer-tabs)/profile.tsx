@@ -58,6 +58,7 @@ export default function ProfileScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [cropImage, setCropImage] = useState<string | null>(null);
 
@@ -197,8 +198,11 @@ export default function ProfileScreen() {
     }
   };
 
-
   const uploadProfilePicture = async (croppedImage: string) => {
+    if (avatarLoading) return;
+
+    setLocalAvatarUri(croppedImage);
+    setCropImage(null);
     setAvatarLoading(true);
 
     try {
@@ -210,49 +214,50 @@ export default function ProfileScreen() {
       } = await client.auth.getUser();
 
       if (userError) throw userError;
-
-      if (!user) {
-        throw new Error('Please sign in again.');
-      }
+      if (!user) throw new Error('Please sign in again.');
 
       const response = await fetch(croppedImage);
-
       if (!response.ok) {
         throw new Error('Unable to read the selected image.');
       }
 
       const imageBuffer = await response.arrayBuffer();
-      const objectPath = `${user.id}/avatar.jpg`;
+      const objectPath = `${user.id}/avatar-${Date.now()}.jpg`;
 
       const { error: uploadError } = await client.storage
         .from('avatars')
         .upload(objectPath, imageBuffer, {
           contentType: 'image/jpeg',
-          upsert: true,
+          upsert: false,
         });
 
       if (uploadError) throw uploadError;
 
-      const { error: saveError } = await client
+      const { data: updatedProfile, error: saveError } = await client
         .from('profiles')
         .update({ avatar_url: objectPath })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select('avatar_url')
+        .single();
 
       if (saveError) throw saveError;
 
-      const {
-        data: signedImage,
-        error: signedError,
-      } = await client.storage
-        .from('avatars')
-        .createSignedUrl(objectPath, 3600);
+      if (!updatedProfile?.avatar_url) {
+        throw new Error('The profile picture path was not saved.');
+      }
 
-      if (signedError || !signedImage?.signedUrl) {
-        throw signedError ?? new Error('Unable to display the uploaded image.');
+      const { data: signedImage, error: signedError } =
+        await client.storage
+          .from('avatars')
+          .createSignedUrl(updatedProfile.avatar_url, 3600);
+
+      if (signedError) throw signedError;
+      if (!signedImage?.signedUrl) {
+        throw new Error('Unable to display the uploaded image.');
       }
 
       setAvatarUrl(signedImage.signedUrl);
-      setCropImage(null);
+      setLocalAvatarUri(null);
 
       Alert.alert('Success', 'Your profile picture has been updated.');
     } catch (error) {
@@ -264,6 +269,7 @@ export default function ProfileScreen() {
       setAvatarLoading(false);
     }
   };
+
 
   const openEditor = () => {
     setDraft({ name, email, phone });
@@ -556,8 +562,15 @@ export default function ProfileScreen() {
           >
             {avatarLoading ? (
               <ActivityIndicator color="#ffffff" />
-            ) : avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : localAvatarUri || avatarUrl ? (
+              <Image
+                key={localAvatarUri || avatarUrl}
+                source={{ uri: localAvatarUri || avatarUrl! }}
+                style={styles.avatarImage}
+                onError={() => {
+                  console.log('Unable to display the profile image.');
+                }}
+              />
             ) : (
               <AppText style={styles.avatarText}>{initials}</AppText>
             )}
@@ -649,6 +662,7 @@ export default function ProfileScreen() {
               image={cropImage}
               onCancel={() => setCropImage(null)}
               onConfirm={(croppedImage) => {
+                setCropImage(null);
                 void uploadProfilePicture(croppedImage);
               }}
             />
