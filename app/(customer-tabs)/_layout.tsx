@@ -9,15 +9,14 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import Feather from '@expo/vector-icons/Feather';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: Colors[colorScheme].tint,
         tabBarLabelStyle: { fontFamily: 'Roboto_500Medium' },
         headerShown: true,
         header: () => <CustomHeader />,
@@ -57,10 +56,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="services"
         options={{
-          title: 'Services',
-          tabBarIcon: ({ color }) => (
-            <Feather name="shopping-bag" size={24} color={color} />
-          ),
+          href: null,
         }}
       />
     </Tabs>

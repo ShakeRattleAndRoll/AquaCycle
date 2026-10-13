@@ -92,7 +92,7 @@ export default function CustomHeader() {
   }, []);
 
   useEffect(() => {
-    void loadNotifications();
+    void Promise.resolve().then(() => loadNotifications());
   }, [loadNotifications, pathname, showNotifications]);
 
   useEffect(() => {

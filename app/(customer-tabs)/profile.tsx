@@ -5,6 +5,7 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
 import {
   ActivityIndicator,
   Alert,
@@ -61,6 +62,10 @@ export default function ProfileScreen() {
   const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [cropImage, setCropImage] = useState<string | null>(null);
+  const [avatarFeedback, setAvatarFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const [draft, setDraft] = useState({
     name: '',
@@ -216,12 +221,16 @@ export default function ProfileScreen() {
       if (userError) throw userError;
       if (!user) throw new Error('Please sign in again.');
 
-      const response = await fetch(croppedImage);
-      if (!response.ok) {
-        throw new Error('Unable to read the selected image.');
-      }
-
-      const imageBuffer = await response.arrayBuffer();
+      const imageBuffer =
+        Platform.OS === 'web'
+          ? await (async () => {
+              const response = await fetch(croppedImage);
+              if (!response.ok) {
+                throw new Error('Unable to read the selected image.');
+              }
+              return response.arrayBuffer();
+            })()
+          : await new File(croppedImage).arrayBuffer();
       const objectPath = `${user.id}/avatar-${Date.now()}.jpg`;
 
       const { error: uploadError } = await client.storage
@@ -259,12 +268,16 @@ export default function ProfileScreen() {
       setAvatarUrl(signedImage.signedUrl);
       setLocalAvatarUri(null);
 
-      Alert.alert('Success', 'Your profile picture has been updated.');
+      setAvatarFeedback({
+        type: 'success',
+        message: 'Your profile picture has been updated.',
+      });
     } catch (error) {
-      Alert.alert(
-        'Upload failed',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
+      setLocalAvatarUri(null);
+      setAvatarFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
     } finally {
       setAvatarLoading(false);
     }
@@ -669,6 +682,58 @@ export default function ProfileScreen() {
 
           )}
         </View>
+      </Modal>
+
+      <Modal
+        visible={avatarFeedback !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarFeedback(null)}
+      >
+        {avatarFeedback && (
+          <View style={styles.logoutBackdrop}>
+            <View
+              style={styles.logoutCard}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+            >
+              <View
+                style={[
+                  styles.avatarFeedbackIcon,
+                  avatarFeedback.type === 'success'
+                    ? styles.avatarFeedbackSuccessIcon
+                    : styles.avatarFeedbackErrorIcon,
+                ]}
+              >
+                <Feather
+                  name={avatarFeedback.type === 'success' ? 'check' : 'alert-circle'}
+                  size={23}
+                  color={avatarFeedback.type === 'success' ? '#15803d' : '#dc2626'}
+                />
+              </View>
+
+              <AppText style={styles.logoutTitle}>
+                {avatarFeedback.type === 'success'
+                  ? 'Picture updated'
+                  : 'Upload failed'}
+              </AppText>
+              <AppText style={styles.logoutMessage}>
+                {avatarFeedback.message}
+              </AppText>
+
+              <View style={styles.avatarFeedbackActions}>
+                <TouchableOpacity
+                  style={styles.avatarFeedbackButton}
+                  onPress={() => setAvatarFeedback(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss profile picture message"
+                >
+                  <AppText style={styles.avatarFeedbackButtonText}>Got it</AppText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </Modal>
 
       <Modal
@@ -1684,6 +1749,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
+  },
+  avatarFeedbackIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  avatarFeedbackSuccessIcon: {
+    backgroundColor: '#dcfce7',
+  },
+  avatarFeedbackErrorIcon: {
+    backgroundColor: '#fef2f2',
+  },
+  avatarFeedbackActions: {
+    alignItems: 'flex-end',
+    marginTop: 22,
+  },
+  avatarFeedbackButton: {
+    minHeight: 44,
+    minWidth: 104,
+    paddingHorizontal: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: theme.color.secondary,
+  },
+  avatarFeedbackButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
   },
   logoutTitle: {
     color: '#0f172a',

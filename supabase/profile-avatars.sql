@@ -20,7 +20,7 @@ create policy "Users can view their own avatar"
   );
 
 drop policy if exists "Users can upload their own avatar" on storage.objects;
-create policy "Users can upload their own 
+create policy "Users can upload their own avatar"
   on storage.objects for insert to authenticated
   with check (
     bucket_id = 'avatars'

@@ -134,10 +134,14 @@ export function StaffOrdersScreen() {
   }, []);
 
   useEffect(() => {
-    const orderId = Array.isArray(requestedOrderId) ? requestedOrderId[0] : requestedOrderId;
-    if (!orderId) return;
-    const matchingOrder = orders.find((order) => order.id === orderId);
-    if (matchingOrder) openOrder(matchingOrder);
+    let active = true;
+    void Promise.resolve().then(() => {
+      const orderId = Array.isArray(requestedOrderId) ? requestedOrderId[0] : requestedOrderId;
+      if (!active || !orderId) return;
+      const matchingOrder = orders.find((order) => order.id === orderId);
+      if (matchingOrder) openOrder(matchingOrder);
+    });
+    return () => { active = false; };
   }, [openOrder, orders, requestedOrderId]);
 
   const confirmAndSave = () => {
@@ -483,9 +487,13 @@ export function CustomerCreateOrderScreen() {
   const chosenServices = CUSTOMER_SERVICES.filter((item) => selectedServices.includes(item.id));
 
   useEffect(() => {
-    const serviceName = Array.isArray(requestedService) ? requestedService[0] : requestedService;
-    const service = CUSTOMER_SERVICES.find((item) => item.name === serviceName);
-    if (service) setSelectedServices([service.id]);
+    let active = true;
+    void Promise.resolve().then(() => {
+      const serviceName = Array.isArray(requestedService) ? requestedService[0] : requestedService;
+      const service = CUSTOMER_SERVICES.find((item) => item.name === serviceName);
+      if (active && service) setSelectedServices([service.id]);
+    });
+    return () => { active = false; };
   }, [requestedService]);
 
   const serviceEstimate = useMemo(() => chosenServices.reduce((sum, item) => sum + item.unitPrice, 0), [chosenServices]);

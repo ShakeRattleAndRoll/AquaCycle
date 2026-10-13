@@ -107,10 +107,14 @@ export default function OrdersDetails() {
   }, [loadOrders]));
 
   useEffect(() => {
-    const orderId = Array.isArray(requestedOrderId) ? requestedOrderId[0] : requestedOrderId;
-    if (!orderId) return;
-    const matchingOrder = orders.find((order) => order.id === orderId);
-    if (matchingOrder) setSelectedOrder(matchingOrder);
+    let active = true;
+    void Promise.resolve().then(() => {
+      const orderId = Array.isArray(requestedOrderId) ? requestedOrderId[0] : requestedOrderId;
+      if (!active || !orderId) return;
+      const matchingOrder = orders.find((order) => order.id === orderId);
+      if (matchingOrder) setSelectedOrder(matchingOrder);
+    });
+    return () => { active = false; };
   }, [orders, requestedOrderId]);
 
   return (
